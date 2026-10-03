@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Paths that may be shared through the FileProvider. Only the app's private sandbox is
+  exposed; SAF granted URIs are shared with the grants the user already gave.
+-->
+<paths>
+    <files-path
+        name="documents"
+        path="documents/" />
+    <files-path
+        name="thumbnails"
+        path="thumbnails/" />
+    <files-path
+        name="exports"
+        path="exports/" />
+    <cache-path
+        name="shared_cache"
+        path="shared/" />
+    <!-- Scanner pages that have not been saved yet. They are handed around as content URIs
+         (previews, the page strip and the save pipeline all read through the provider). -->
+    <cache-path
+        name="scan_staging"
+        path="scans/" />
+</paths>

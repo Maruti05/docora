@@ -1,0 +1,90 @@
+# ==========================================================
+# Docora - Android / Kotlin / Gradle project ignore rules
+# ==========================================================
+
+# --- Gradle ---
+.gradle/
+build/
+*/build/
+!gradle/wrapper/gradle-wrapper.jar
+.gradle-cache/
+.cxx/
+.externalNativeBuild/
+
+# --- Local configuration (machine specific) ---
+# Contains sdk.dir -> absolute path of the local Android SDK
+local.properties
+*.properties.local
+
+# --- IDE: Android Studio / IntelliJ ---
+.idea/
+*.iml
+*.ipr
+*.iws
+.navigation/
+.factorypath
+
+# --- IDE: VS Code ---
+.vscode/
+
+# --- Kotlin ---
+.kotlin/
+kotlin-js-store/
+
+# --- Tool-local metadata / backups ---
+# Freebuff (editor tool) project id is local to this machine
+.freebuff/
+# Kotlin IDE backup copies (e.g. DocumentDao.kt)
+.kt-backup/
+*.bak
+*.orig
+*~
+
+# --- Android build artefacts ---
+*.apk
+*.aab
+*.aep
+*.ap_
+*.dex
+*.class
+gen/
+out/
+release/
+output.json
+*.apks
+
+# --- Signing material (NEVER commit) ---
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+google-services.json
+secrets.properties
+*.pem
+*.key
+*.p12
+*.pfx
+
+# --- Logs, crashes & diagnostics ---
+*.log
+.bootstrap.log
+.gradle-bootstrap*.log
+hs_err_pid*.log
+replay_pid*.log
+*.hprof
+threaddump*.log
+
+# --- Scratch files used while verifying the local toolchain ---
+.env-check.txt
+.versions-check*.txt
+
+# --- OS junk ---
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Desktop.ini
+
+# --- Misc ---
+captures/

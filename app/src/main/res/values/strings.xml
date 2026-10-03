@@ -1,0 +1,590 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  All user visible text lives here so that copy can be reviewed and translated
+  without touching code. Plurals/quantity strings use <plurals> where needed.
+-->
+<resources>
+    <string name="app_name">Docora</string>
+    <string name="widget_label">Docora quick actions</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_documents">Documents</string>
+    <string name="nav_scan">Scan</string>
+    <string name="nav_search">Search</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Home -->
+    <string name="home_greeting_morning">Good morning</string>
+    <string name="home_greeting_afternoon">Good afternoon</string>
+    <string name="home_greeting_evening">Good evening</string>
+    <string name="home_search_hint">Search documents…</string>
+    <string name="home_recent">Recent</string>
+    <string name="home_collections">Collections</string>
+    <string name="home_categories">Categories</string>
+    <string name="home_recent_documents">Recent documents</string>
+
+    <!-- Global search (PRD §25) -->
+    <string name="search_query_hint">Search titles, tags and text</string>
+    <string name="search_suggestions">Suggestions</string>
+    <string name="search_results_count">“%1$s” • %2$d result%3$s</string>
+    <string name="search_no_query">Type to search across every document, tag and extracted page.</string>
+    <string name="search_indexing_pending">Some documents are still being indexed — results may grow.</string>
+    <string name="search_snippet_from_text">Matched in document text</string>
+    <string name="home_see_all">See all</string>
+    <string name="processing_title">Processing documents</string>
+    <string name="processing_progress">%1$d of %2$d</string>
+
+    <!-- Global search (PRD §25) -->
+
+
+    <!-- Empty and error states -->
+    <string name="empty_library_title">No documents yet</string>
+    <string name="empty_library_message">Scan your first document or import files from your device.</string>
+    <string name="empty_folder_title">This folder is empty</string>
+    <string name="empty_folder_message">Move documents here or import new files into this folder.</string>
+    <string name="empty_search_title">No matches</string>
+    <string name="empty_search_message">Try a different word, or relax your filters.</string>
+    <string name="empty_trash_title">Trash is empty</string>
+    <string name="empty_trash_message">Documents you delete are kept here until you empty the trash.</string>
+    <string name="empty_favorites_title">No favourites yet</string>
+    <string name="empty_favorites_message">Star the documents you open most often to find them instantly.</string>
+    <string name="empty_duplicates_title">No duplicates found</string>
+    <string name="empty_duplicates_message">Docora compares file size and content checksums to spot identical copies.</string>
+    <string name="error_generic_title">Something went wrong</string>
+    <string name="error_document_missing">This document is no longer available at its original location.</string>
+    <string name="error_permission_revoked">Docora no longer has permission to open this document.</string>
+    <string name="error_unsupported_format">Docora cannot preview this file type.</string>
+    <string name="error_pdf_corrupted">This PDF could not be read. The file may be damaged or password protected.</string>
+    <string name="error_storage_unavailable">The selected storage is not available right now.</string>
+    <string name="error_not_enough_storage">There is not enough free space to finish this operation.</string>
+    <string name="error_operation_cancelled">The operation was cancelled.</string>
+    <string name="error_no_viewer_app">No app on this device can open this file.</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_choose_another_file">Choose another file</string>
+    <string name="action_open_with">Open with</string>
+    <string name="action_dismiss">Dismiss</string>
+    <string name="action_relink">Locate file</string>
+
+    <!-- Common actions -->
+    <string name="action_scan_document">Scan document</string>
+    <string name="action_import_files">Import files</string>
+    <string name="action_import_folder">Import folder</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_move">Move</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_restore">Restore</string>
+    <string name="action_delete_forever">Delete permanently</string>
+    <string name="action_empty_trash">Empty trash</string>
+    <string name="action_favourite">Favourite</string>
+    <string name="action_unfavourite">Remove favourite</string>
+    <string name="action_tags">Tags</string>
+    <string name="action_share">Share</string>
+    <string name="action_print">Print</string>
+    <string name="action_details">Details</string>
+    <string name="action_select_all">Select all</string>
+    <string name="action_clear_selection">Clear selection</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_done">Done</string>
+    <string name="action_create">Create</string>
+    <string name="action_new_folder">New folder</string>
+    <string name="action_rename_folder">Rename folder</string>
+    <string name="action_delete_folder">Delete folder</string>
+    <string name="action_sort">Sort</string>
+    <string name="action_view_mode">View</string>
+    <string name="action_more_options">More options</string>
+    <string name="action_back">Back</string>
+    <string name="action_next">Next</string>
+    <string name="action_skip">Skip</string>
+    <string name="action_get_started">Get started</string>
+    <string name="action_retake">Retake</string>
+    <string name="action_add_page">Add page</string>
+    <string name="action_save_pdf">Save as PDF</string>
+    <string name="action_save_image">Save as image</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_reset">Reset</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_rename_tag">Rename tag</string>
+
+    <!-- Runtime permissions (requested just in time, PRD §66) -->
+    <string name="permission_storage_title">Access files on this device</string>
+    <string name="permission_storage_message">Docora reads this device\'s storage to list the documents you already have so you can open and view them here. Everything happens on your phone.</string>
+    <string name="permission_camera_title">Camera access is needed to scan</string>
+    <string name="action_allow">Allow</string>
+    <string name="action_open_settings">Open settings</string>
+    <string name="action_open">Open</string>
+    <string name="selected_count">%1$d selected</string>
+
+    <!-- Sorting -->
+    <string name="sort_name">Name</string>
+    <string name="sort_date_modified">Date modified</string>
+    <string name="sort_date_created">Date created</string>
+    <string name="sort_size">Size</string>
+    <string name="sort_type">Type</string>
+    <string name="sort_last_opened">Last opened</string>
+    <string name="sort_ascending">Ascending</string>
+    <string name="sort_descending">Descending</string>
+
+    <!-- View modes -->
+    <string name="view_list">List</string>
+    <string name="view_compact">Compact</string>
+    <string name="view_grid">Grid</string>
+    <string name="view_large_grid">Large grid</string>
+
+    <!-- Collections -->
+    <string name="collection_all">Documents</string>
+    <string name="collection_recent">Recent</string>
+    <string name="collection_favorites">Favourites</string>
+    <string name="collection_scans">Scans</string>
+    <string name="collection_pdfs">PDFs</string>
+    <string name="collection_images">Images</string>
+    <string name="collection_large">Large files</string>
+    <string name="collection_recently_modified">Recently modified</string>
+    <string name="collection_trash">Trash</string>
+    <string name="collection_duplicates">Duplicates</string>
+    <string name="collection_storage">Storage</string>
+
+    <!-- Documents screen -->
+    <string name="documents_title">Documents</string>
+    <string name="documents_filter_all">All</string>
+    <string name="documents_filter_pdf">PDF</string>
+    <string name="documents_filter_images">Images</string>
+    <string name="documents_filter_documents">Documents</string>
+    <string name="documents_filter_archives">Archives</string>
+    <string name="documents_filter_favourites">Favourites</string>
+    <string name="documents_filter_ocr_pending">Needs text recognition</string>
+    <string name="documents_on_device">On this device</string>
+    <string name="documents_on_device_hint">Tap a file to add it to your Docora library</string>
+    <string name="documents_selected">%1$d selected</string>
+    <string name="documents_folders">Folders</string>
+    <string name="documents_root">All documents</string>
+    <string name="documents_new_folder_hint">Folder name</string>
+    <string name="documents_no_writable_provider">This location does not allow Docora to create files.</string>
+    <string name="documents_device_section">On this device</string>
+    <string name="documents_library_section">In Docora</string>
+    <string name="documents_device_empty">No documents were found on this device.</string>
+    <string name="documents_device_shown">Showing the %1$d most recent files</string>
+    <string name="documents_view_list">List view</string>
+    <string name="documents_view_grid">Grid view</string>
+    <string name="documents_importing">Adding to your library…</string>
+    <string name="documents_import_failed">Some files could not be imported</string>
+
+    <!-- Search -->
+    <string name="search_title">Search</string>
+    <string name="search_hint">Search titles, tags and text</string>
+    <string name="search_recent">Recent searches</string>
+    <string name="search_clear_history">Clear search history</string>
+    <string name="search_filters">Filters</string>
+    <string name="search_filter_date">Date</string>
+    <string name="search_filter_type">Type</string>
+    <string name="search_filter_tags">Tags</string>
+    <string name="search_filter_favourites_only">Favourites only</string>
+    <string name="search_filter_last_7_days">Last 7 days</string>
+
+    <!-- Viewer -->
+    <string name="viewer_page_of">Page %1$d of %2$d</string>
+    <string name="viewer_jump_to_page">Go to page</string>
+    <string name="viewer_thumbnails">Pages</string>
+    <string name="viewer_search_in_document">Find in document</string>
+    <string name="viewer_no_matches">No matches in this document</string>
+    <string name="viewer_extracted_text">Extracted text</string>
+    <string name="viewer_render_failed">This page could not be rendered.</string>
+    <string name="viewer_night_mode">Invert colours</string>
+    <string name="viewer_rotate">Rotate</string>
+    <string name="viewer_zoom_reset">Reset zoom</string>
+    <string name="viewer_loading">Opening document…</string>
+    <string name="viewer_image_of">Image %1$d of %2$d</string>
+
+    <!-- Text recognition (OCR) -->
+    <string name="ocr_status_not_processed">Not processed</string>
+    <string name="ocr_status_processing">Processing</string>
+    <string name="ocr_status_completed">Completed</string>
+    <string name="ocr_status_failed">Failed</string>
+    <string name="ocr_status_skipped">Not applicable</string>
+    <string name="ocr_run">Run text recognition</string>
+    <string name="ocr_copy_text">Copy text</string>
+    <string name="ocr_export_text">Export text</string>
+    <string name="ocr_copied">Text copied to the clipboard</string>
+    <string name="ocr_no_text">No text was recognised in this document.</string>
+    <string name="ocr_language_note">Recognition uses the on-device ML Kit model for Latin script and stays offline.</string>
+
+    <!-- Scanner -->
+    <string name="scan_title">Scan</string>
+    <string name="scan_capture">Capture</string>
+    <string name="scan_mode_auto">Auto</string>
+    <string name="scan_mode_document">Document</string>
+    <string name="scan_mode_id">ID card</string>
+    <string name="scan_mode_receipt">Receipt</string>
+    <string name="scan_mode_whiteboard">Whiteboard</string>
+    <string name="scan_mode_photo">Photo</string>
+    <string name="scan_auto_capture">Auto capture</string>
+    <string name="scan_flash">Flash</string>
+    <string name="scan_flash_auto">Auto</string>
+    <string name="scan_flash_on">On</string>
+    <string name="scan_flash_off">Off</string>
+    <string name="scan_filter_original">Original</string>
+    <string name="scan_filter_enhance">Enhance</string>
+    <string name="scan_filter_grayscale">Grayscale</string>
+    <string name="scan_filter_black_white">Black &amp; white</string>
+    <string name="scan_filter_magic">Magic colour</string>
+    <string name="scan_pages">Pages</string>
+    <string name="scan_page_count">%1$d pages</string>
+    <string name="scan_crop_title">Adjust edges</string>
+    <string name="scan_crop_hint">Drag the corners to match the document edges.</string>
+    <string name="scan_no_pages">Capture at least one page to continue.</string>
+    <string name="scan_permission_rationale">Docora needs the camera to scan documents. Captures stay on your device.</string>
+    <string name="scan_permission_denied">Camera access is off. Enable it in system settings to scan documents.</string>
+    <string name="scan_open_settings_hint">You can allow the camera again from system settings.</string>
+    <string name="scan_edge_detected">Edges detected</string>
+    <string name="scan_edge_not_detected">No page detected — fill the frame</string>
+    <string name="scan_saving">Saving document…</string>
+
+    <!-- PDF toolkit -->
+    <string name="toolkit_title">PDF tools</string>
+    <string name="toolkit_merge">Merge PDFs</string>
+    <string name="toolkit_split">Split PDF</string>
+    <string name="toolkit_extract">Extract pages</string>
+    <string name="toolkit_delete_pages">Delete pages</string>
+    <string name="toolkit_rotate">Rotate pages</string>
+    <string name="toolkit_duplicate">Duplicate pages</string>
+    <string name="toolkit_reorder">Reorder pages</string>
+    <string name="toolkit_compress">Compress</string>
+    <string name="toolkit_metadata">Edit metadata</string>
+    <string name="toolkit_images_to_pdf">Images to PDF</string>
+    <string name="toolkit_pages_hint">Examples: 1-3, 5, 8-10</string>
+    <string name="toolkit_invalid_range">Enter page numbers such as 1-3, 5.</string>
+    <string name="toolkit_output_name">Output file name</string>
+    <string name="toolkit_result_saved">Saved %1$s</string>
+    <string name="toolkit_compression_original">Original quality</string>
+
+    <!-- Details -->
+    <string name="details_title">Details</string>
+    <string name="details_type">Type</string>
+    <string name="details_size">Size</string>
+    <string name="details_pages">Pages</string>
+    <string name="details_created">Created</string>
+    <string name="details_modified">Modified</string>
+    <string name="details_location">Location</string>
+    <string name="details_tags">Tags</string>
+    <string name="details_dimensions">Dimensions</string>
+    <string name="details_word_count">Words</string>
+    <string name="details_checksum">SHA-256</string>
+    <string name="details_last_opened">Last opened</string>
+    <string name="details_location_root">Docora library</string>
+    <string name="details_text_source">Text source</string>
+
+    <!-- Tags and categories -->
+    <string name="tags_title">Tags</string>
+    <string name="tags_new">New tag</string>
+    <string name="tags_name_hint">Tag name</string>
+    <string name="tags_auto_badge">Auto</string>
+    <string name="tags_delete_confirm">Delete this tag? It will be removed from all documents.</string>
+    <string name="tags_empty">No tags yet. Create one to group documents across folders.</string>
+    <string name="category_work">Work</string>
+    <string name="category_finance">Finance</string>
+    <string name="category_personal">Personal</string>
+    <string name="category_travel">Travel</string>
+    <string name="category_vehicle">Vehicle</string>
+    <string name="category_education">Education</string>
+    <string name="category_medical">Medical</string>
+    <string name="category_receipts">Receipts</string>
+    <string name="category_important">Important</string>
+    <string name="category_identity">Identity</string>
+    <string name="category_other">Other</string>
+
+    <!-- Storage and duplicates -->
+    <string name="storage_title">Storage</string>
+    <string name="storage_documents">Documents</string>
+    <string name="storage_pdf">PDF</string>
+    <string name="storage_images">Images</string>
+    <string name="storage_other">Other</string>
+    <string name="storage_largest_files">Largest files</string>
+    <string name="storage_trash_size">Trash</string>
+    <string name="storage_thumbnail_cache">Thumbnail cache</string>
+    <string name="storage_clear_cache">Clear thumbnail cache</string>
+    <string name="storage_cache_cleared">Thumbnail cache cleared</string>
+    <string name="storage_no_files">Nothing stored yet</string>
+    <string name="duplicates_title">Possible duplicates</string>
+    <string name="duplicates_message">These files have identical content. Docora never deletes duplicates automatically.</string>
+    <string name="duplicates_keep_one">Keep one</string>
+    <string name="duplicates_ignore">Ignore group</string>
+    <string name="duplicates_group_size">%1$d copies</string>
+    <string name="duplicates_kept_snack">Kept the oldest copy, moved the rest to the trash</string>
+
+    <!-- Security -->
+    <string name="lock_title">Docora is locked</string>
+    <string name="lock_message">Unlock to open your documents.</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="lock_biometric_prompt_title">Unlock Docora</string>
+    <string name="lock_biometric_prompt_subtitle">Confirm it is you to open your documents</string>
+    <string name="lock_auth_failed">Authentication failed. Try again.</string>
+    <string name="lock_no_auth_available">Set up a screen lock or fingerprint on this device to use App Lock.</string>
+    <string name="lock_biometric_not_enrolled">Add a fingerprint or face to this device to unlock with biometrics.</string>
+
+    <!-- Confirmations -->
+    <string name="confirm_delete_title">Move to trash?</string>
+    <string name="confirm_delete_message">You can restore these documents from the trash later.</string>
+    <string name="confirm_delete_provider_message">This file lives outside Docora, so deleting it removes the original too. The provider may not be able to undo this.</string>
+    <string name="confirm_delete_forever_title">Delete permanently?</string>
+
+    <!-- Snackbars and messages -->
+    <string name="snack_moved_to_trash">Moved to trash</string>
+    <string name="snack_deleted">Deleted</string>
+    <string name="snack_restored">Restored</string>
+    <string name="snack_renamed">Renamed</string>
+    <string name="snack_rename_failed">The document could not be renamed. The name may already be in use.</string>
+    <string name="snack_moved">Moved</string>
+    <string name="snack_copied">Copied %1$d documents</string>
+    <string name="snack_favourite_added">Added to favourites</string>
+    <string name="snack_favourite_removed">Removed from favourites</string>
+    <string name="snack_tags_updated">Tags updated</string>
+    <string name="snack_imported">Imported %1$d documents</string>
+    <string name="snack_import_failed">Could not import %1$d files</string>
+    <string name="snack_indexing_queued">Indexing started</string>
+    <string name="snack_processing_done">Processing finished</string>
+    <string name="snack_nothing_selected">Select at least one document</string>
+    <string name="snack_undo">Undo</string>
+    <string name="snack_ocr_unsupported">Text recognition is not available for this file type</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_processing">Document processing</string>
+    <string name="notif_channel_processing_desc">Progress for indexing, text recognition and thumbnails</string>
+    <string name="notif_ocr_done_title">Text recognition finished</string>
+    <string name="notif_ocr_done_text">%1$d documents were processed</string>
+    <string name="notif_import_done_title">Import finished</string>
+    <string name="notif_import_done_text">%1$d documents added to Docora</string>
+    <string name="notif_progress_indexing">Indexing documents…</string>
+
+    <!-- Accessibility -->
+    <string name="a11y_thumbnail_of">Thumbnail of %1$s</string>
+    <string name="a11y_favourite_toggle">Favourite %1$s</string>
+    <string name="a11y_more_actions_for">More actions for %1$s</string>
+    <string name="a11y_page_thumbnail">Page %1$d thumbnail</string>
+    <string name="a11y_capture_button">Capture page</string>
+    <string name="a11y_crop_corner">Crop corner %1$d</string>
+    <string name="a11y_storage_bar">%1$s used by %2$s</string>
+    <string name="a11y_document_selected">%1$s, selected</string>
+    <string name="a11y_processing_progress">%1$d%% complete</string>
+
+    <!-- File type labels -->
+    <string name="type_pdf">PDF</string>
+    <string name="type_image">Image</string>
+    <string name="type_text">Text</string>
+    <string name="type_spreadsheet">Spreadsheet</string>
+    <string name="type_presentation">Presentation</string>
+    <string name="type_document">Document</string>
+    <string name="type_archive">Archive</string>
+    <string name="type_unknown">Unknown</string>
+
+    <!-- Miscellaneous -->
+    <string name="misc_unknown_date">Unknown</string>
+    <string name="misc_read_only_provider">This location is read-only</string>
+    <string name="misc_provider_unavailable">The storage provider is unavailable</string>
+    <string name="misc_file_too_large">This file is %1$s, which is larger than the %2$s limit Docora opens safely.</string>
+    <string name="misc_office_fallback">Docora shows the details of Office files and indexes their text when it can. Use “Open with” for a full preview.</string>
+    <string name="misc_zip_listing">Archive contents</string>
+    <string name="misc_zip_extract">Extract archive</string>
+    <string name="misc_zip_extract_done">Extracted %1$d files</string>
+    <string name="misc_zip_unsafe_entry">Skipped unsafe entry: %1$s</string>
+    <string name="misc_decompression_bomb">This archive expands to more than %1$s and was not extracted.</string>
+
+    <string name="confirm_delete_forever_message">This cannot be undone.</string>
+    <string name="confirm_empty_trash_title">Empty the trash?</string>
+    <string name="confirm_empty_trash_message">All documents in the trash will be permanently deleted.</string>
+    <string name="confirm_delete_tag_title">Delete tag?</string>
+    <string name="confirm_overwrite">A file with this name already exists. Save a copy instead?</string>
+    <string name="confirm_discard_scan_title">Discard this scan?</string>
+    <string name="confirm_discard_scan_message">The captured pages will be lost.</string>
+
+    <string name="toolkit_compression_high">High quality</string>
+    <string name="toolkit_compression_balanced">Balanced</string>
+    <string name="toolkit_compression_small">Small size</string>
+    <string name="toolkit_estimated_size">Estimated output: %1$s</string>
+    <string name="toolkit_page_size">Page size</string>
+    <string name="toolkit_orientation">Orientation</string>
+    <string name="toolkit_orientation_portrait">Portrait</string>
+    <string name="toolkit_orientation_landscape">Landscape</string>
+    <string name="toolkit_orientation_auto">Fit to image</string>
+    <string name="toolkit_margins">Margins</string>
+    <string name="toolkit_quality">Image quality</string>
+    <string name="toolkit_page_size_a4">A4</string>
+    <string name="toolkit_page_size_letter">Letter</string>
+    <string name="toolkit_page_size_fit">Fit to image</string>
+    <string name="toolkit_select_pdfs">Select the PDFs to merge in order</string>
+
+    <string name="search_filter_last_30_days">Last 30 days</string>
+    <string name="search_filter_this_year">This year</string>
+    <string name="search_filter_any_date">Any time</string>
+    <string name="search_indexing_in_progress">Some documents are still being indexed.</string>
+    <string name="search_result_count">%1$d results</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System default</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_dynamic_colour">Use dynamic colour</string>
+    <string name="settings_dynamic_colour_summary">Match the wallpaper palette on Android 12 and newer.</string>
+    <string name="settings_view_mode">Default view</string>
+    <string name="settings_sort_order">Default sort</string>
+    <string name="settings_section_security">Security</string>
+    <string name="settings_app_lock">App lock</string>
+    <string name="settings_app_lock_summary">Require biometric or device unlock to open Docora</string>
+    <string name="settings_auto_lock">Auto-lock timeout</string>
+    <string name="settings_auto_lock_immediately">Immediately</string>
+    <string name="settings_auto_lock_1">After 1 minute</string>
+    <string name="settings_auto_lock_5">After 5 minutes</string>
+    <string name="settings_auto_lock_15">After 15 minutes</string>
+    <string name="settings_auto_lock_never">Never</string>
+    <string name="settings_secure_screen">Block screenshots and recent-apps preview</string>
+    <string name="settings_secure_screen_summary">Adds FLAG_SECURE to every app window.</string>
+    <string name="settings_encrypt_text">Encrypt recognised text at rest</string>
+    <string name="settings_encrypt_text_summary">Keeps recognised text encrypted with an Android Keystore key. Full-text search then covers titles, tags and metadata only.</string>
+    <string name="settings_section_scanner">Scanner</string>
+    <string name="settings_scanner_quality">Image quality</string>
+    <string name="settings_scanner_quality_standard">Standard</string>
+    <string name="settings_scanner_quality_high">High</string>
+    <string name="settings_scanner_quality_maximum">Maximum</string>
+    <string name="settings_scanner_auto_capture">Auto capture</string>
+    <string name="settings_scanner_default_filter">Default filter</string>
+    <string name="settings_scanner_ocr">Run text recognition after saving</string>
+    <string name="settings_section_storage">Storage</string>
+    <string name="settings_trash_retention">Keep deleted documents for</string>
+    <string name="settings_trash_retention_7">7 days</string>
+    <string name="settings_trash_retention_30">30 days</string>
+    <string name="settings_trash_retention_90">90 days</string>
+    <string name="settings_trash_retention_forever">Until I empty the trash</string>
+    <string name="settings_thumbnail_cache_limit">Thumbnail cache limit</string>
+    <string name="settings_cache_clear_summary">Thumbnails are regenerated automatically when they are next needed.</string>
+    <string name="settings_section_search">Search</string>
+    <string name="settings_index_ocr">Index recognised text</string>
+    <string name="settings_index_document_text">Index text from PDF and text files</string>
+    <string name="settings_reindex">Rebuild search index</string>
+    <string name="settings_reindex_summary">Re-reads every document and rebuilds the full-text index.</string>
+    <string name="settings_reindex_started">Rebuilding the search index…</string>
+
+
+    <string name="settings_section_backup">Backup</string>
+    <string name="settings_backup_export">Export metadata backup</string>
+    <string name="settings_backup_export_summary">Folders, tags and document details as a portable JSON file.</string>
+    <string name="settings_backup_include_docs">Copy documents into the backup</string>
+    <string name="settings_backup_include_docs_summary">Adds the documents themselves next to the metadata file. This can use a lot of space.</string>
+    <string name="settings_backup_import">Restore from backup</string>
+    <string name="settings_backup_import_summary">Merge folders, tags and document metadata from a Docora backup file.</string>
+    <string name="settings_backup_done">Backup written to %1$s</string>
+    <string name="settings_backup_restored">Restored %1$d folders and %2$d tags</string>
+    <string name="settings_backup_invalid">This file is not a Docora backup.</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_licences">Open-source licences</string>
+    <string name="settings_privacy">Privacy</string>
+    <string name="settings_privacy_summary">Docora works entirely on this device. Nothing is uploaded, and the app does not request internet access.</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_page1_title">A private place for your documents</string>
+    <string name="onboarding_page1_body">Everything Docora does happens on this device. No account, no cloud, no tracking.</string>
+    <string name="onboarding_page2_title">Import or scan in seconds</string>
+    <string name="onboarding_page2_body">Bring in PDFs, scans and photos, or capture new pages with the built-in scanner.</string>
+    <string name="onboarding_page3_title">Find anything again</string>
+    <string name="onboarding_page3_body">Full-text search covers file names, tags, PDF text and text recognised from scans.</string>
+
+    <!-- Quantity strings -->
+    <plurals name="plural_documents">
+        <item quantity="one">%1$d document</item>
+        <item quantity="other">%1$d documents</item>
+    </plurals>
+    <plurals name="plural_pages">
+        <item quantity="one">%1$d page</item>
+        <item quantity="other">%1$d pages</item>
+    </plurals>
+    <plurals name="plural_results">
+        <item quantity="one">%1$d result</item>
+        <item quantity="other">%1$d results</item>
+    </plurals>
+    <plurals name="plural_copies">
+        <item quantity="one">%1$d copy</item>
+        <item quantity="other">%1$d copies</item>
+    </plurals>
+
+    <string name="search_start_hint">Type to search file names, tags, PDF text and text recognised from scans.</string>
+
+    <!-- Scanner (capture flow, review panel and save pipeline) -->
+    <string name="scan_start_hint">Point the camera at a page and tap the shutter</string>
+    <string name="scan_ready_hint">Hold still — the page looks good</string>
+    <string name="scan_review">Review</string>
+    <string name="scan_save">Save</string>
+    <string name="scan_review_title">Review pages</string>
+    <string name="scan_review_hint">Tap a page to rotate it, or use the badges to reorder.</string>
+    <string name="scan_captured_count">%1$d captured</string>
+    <string name="scan_page_label">Page %1$d</string>
+    <string name="scan_rotate_page">Rotate page</string>
+    <string name="scan_delete_page">Delete page</string>
+    <string name="scan_move_earlier">Move earlier</string>
+    <string name="scan_move_later">Move later</string>
+    <string name="scan_flip_camera">Switch camera</string>
+    <string name="scan_mode_label">Mode</string>
+    <string name="scan_filter_label">Filter</string>
+    <string name="scan_auto_capture_hint">Capture automatically when the page is steady</string>
+    <string name="scan_progress_saving">Saving page %1$d of %2$d</string>
+    <string name="scan_progress_processing">Processing page %1$d of %2$d</string>
+    <string name="scan_saved_pdf">Saved %1$s</string>
+    <string name="scan_saved_images">Saved %1$d images</string>
+    <string name="scan_save_failed">The scan could not be saved. Check the free space on this device.</string>
+    <string name="scan_capture_failed">The camera could not take that shot. Try again.</string>
+    <string name="scan_output_label">Save as</string>
+    <string name="scan_keep_editing">Keep editing</string>
+    <string name="scan_discard">Discard scan</string>
+    <string name="scan_torch">Light</string>
+    <string name="scan_page_number_short">%1$d</string>
+
+    <!-- Documents screen (sorting, layout, selection) -->
+    <string name="documents_sort_title">Sort by</string>
+    <string name="documents_layout_title">Layout</string>
+    <string name="documents_sort_direction">Direction</string>
+    <string name="documents_summary">%1$s · %2$s</string>
+    <string name="documents_clear_search">Clear search</string>
+    <string name="documents_select_all">Select all</string>
+    <string name="documents_selection_title">%1$d selected</string>
+    <string name="documents_filters_title">Type</string>
+    <string name="documents_device_caption">Files on this phone, opened through the system media index</string>
+    <string name="documents_library_caption">Documents Docora manages, including everything you scanned</string>
+    <string name="documents_load_error">Your library could not be read. Pull back and try again.</string>
+
+    <!-- Home screen -->
+    <string name="home_quick_actions">Quick actions</string>
+    <string name="home_action_scan">Scan</string>
+    <string name="home_action_import">Import</string>
+    <string name="home_action_browse">Browse</string>
+    <string name="home_action_categories">Categories</string>
+    <string name="home_hero_subtitle">Everything stays on this device</string>
+    <string name="home_storage_used">%1$s used</string>
+    <string name="home_stat_documents">Documents</string>
+    <string name="home_stat_scans">Scans</string>
+    <string name="home_stat_favourites">Favourites</string>
+    <string name="home_recent_empty">Nothing here yet</string>
+    <string name="home_recent_empty_hint">Scanned and imported documents appear here, newest first.</string>
+    <string name="home_indexing_title">Preparing your library</string>
+
+    <!-- Settings screen -->
+    <string name="settings_section_library">Library</string>
+    <string name="settings_section_appearance_summary">Theme, colour and motion</string>
+    <string name="settings_reduce_motion">Reduce motion</string>
+    <string name="settings_reduce_motion_summary">Shortens and simplifies animations, including screen transitions.</string>
+    <string name="settings_search_history">Search history</string>
+    <string name="settings_search_history_summary">Forget the terms you searched for on this device.</string>
+    <string name="settings_search_history_cleared">Search history cleared</string>
+    <string name="settings_cache_cleared_files">Removed %1$d cached thumbnails</string>
+    <string name="settings_value_on">On</string>
+    <string name="settings_value_off">Off</string>
+    <string name="settings_storage_used">%1$s used</string>
+    <string name="settings_app_lock_unavailable">Set up a screen lock or biometric on this device first</string>
+    <string name="settings_about_summary">Version %1$s · local-first, offline by design</string>
+    <string name="settings_licences_summary">The open-source components Docora is built on.</string>
+    <string name="settings_privacy_local">Nothing leaves this device</string>
+    <string name="settings_scanner_summary">Quality, mode and enhancement applied to new scans</string>
+    <string name="settings_cache_summary">Removed %1$d files</string>
+</resources>

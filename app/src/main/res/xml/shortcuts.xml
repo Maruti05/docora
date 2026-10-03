@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_scan"
+        android:shortcutId="shortcut_scan"
+        android:shortcutLongLabel="@string/action_scan_document"
+        android:shortcutShortLabel="@string/nav_scan">
+        <intent
+            android:action="com.vedica.labs.ind.app.docora.action.SCAN"
+            android:targetClass="com.vedica.labs.ind.app.docora.MainActivity"
+            android:targetPackage="com.vedica.labs.ind.app.docora" />
+    </shortcut>
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_search"
+        android:shortcutId="shortcut_search"
+        android:shortcutLongLabel="@string/search_title"
+        android:shortcutShortLabel="@string/nav_search">
+        <intent
+            android:action="com.vedica.labs.ind.app.docora.action.SEARCH"
+            android:targetClass="com.vedica.labs.ind.app.docora.MainActivity"
+            android:targetPackage="com.vedica.labs.ind.app.docora" />
+    </shortcut>
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_recent"
+        android:shortcutId="shortcut_recent"
+        android:shortcutLongLabel="@string/collection_recent"
+        android:shortcutShortLabel="@string/collection_recent">
+        <intent
+            android:action="com.vedica.labs.ind.app.docora.action.RECENT"
+            android:targetClass="com.vedica.labs.ind.app.docora.MainActivity"
+            android:targetPackage="com.vedica.labs.ind.app.docora" />
+    </shortcut>
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_favorites"
+        android:shortcutId="shortcut_favourites"
+        android:shortcutLongLabel="@string/collection_favorites"
+        android:shortcutShortLabel="@string/collection_favorites">
+        <intent
+            android:action="com.vedica.labs.ind.app.docora.action.FAVOURITES"
+            android:targetClass="com.vedica.labs.ind.app.docora.MainActivity"
+            android:targetPackage="com.vedica.labs.ind.app.docora" />
+    </shortcut>
+
+</shortcuts>
