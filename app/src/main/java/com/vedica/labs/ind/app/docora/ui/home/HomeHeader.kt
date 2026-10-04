@@ -24,38 +24,44 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.vedica.labs.ind.app.docora.R
+import com.vedica.labs.ind.app.docora.ui.designsystem.LocalDocoraSpacing
 
 /**
- * Dashboard header: the app title, settings entry and the search pill (PRD §24, §25).
+ * The dashboard's top row: the app name, the settings entry and the search pill (PRD §24, §25).
  *
- * A time-based greeting used to sit above the title here. It was removed on purpose: the value was
- * read once at composition time, so a session left open across a boundary kept showing a stale
- * greeting, and it told the user nothing actionable about their library.
- *
- * The pill opens the global search screen so search behaviour is identical everywhere
- * (PRD §62: consistency) instead of keeping a second, half-featured query state here.
+ * The pill is a real button, not a text field: typing on the home screen would put a keyboard over
+ * the dashboard the moment the user tapped it, so the tap hands over to the dedicated search screen
+ * where the query, suggestions and filters all live. That keeps search behaviour identical
+ * everywhere (PRD §62) instead of maintaining a second, half-featured query state here.
  */
 @Composable
 fun HomeHeader(
     onSettings: () -> Unit,
     onSearchOpen: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val spacing = LocalDocoraSpacing.current
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(spacing.medium),
+    ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Docora", style = MaterialTheme.typography.headlineMedium)
-            }
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.weight(1f),
+            )
             Box(
-                Modifier
-                    .size(42.dp)
+                modifier = Modifier
+                    .size(44.dp)
                     .clip(CircleShape)
                     .background(scheme.surfaceContainerHigh)
                     .clickable(onClick = onSettings),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    Icons.Filled.Settings,
+                    imageVector = Icons.Filled.Settings,
                     contentDescription = stringResource(R.string.nav_settings),
                     tint = scheme.onSurfaceVariant,
                     modifier = Modifier.size(22.dp),
@@ -65,25 +71,26 @@ fun HomeHeader(
         Surface(
             shape = MaterialTheme.shapes.extraLarge,
             color = scheme.surfaceContainerHigh,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onSearchOpen),
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onSearchOpen),
         ) {
             Row(
-                Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                modifier = Modifier.padding(
+                    horizontal = spacing.large,
+                    vertical = spacing.medium + spacing.extraSmall,
+                ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    Icons.Filled.Search,
+                    imageVector = Icons.Filled.Search,
                     contentDescription = null,
                     tint = scheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
                 Text(
-                    stringResource(R.string.home_search_hint),
+                    text = stringResource(R.string.home_search_hint),
                     style = MaterialTheme.typography.bodyLarge,
                     color = scheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 12.dp),
+                    modifier = Modifier.padding(start = spacing.medium),
                 )
             }
         }

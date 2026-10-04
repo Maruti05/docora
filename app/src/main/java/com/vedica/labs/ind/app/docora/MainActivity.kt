@@ -115,7 +115,12 @@ class MainActivity : FragmentActivity() {
         if (preferencesManager.settings.first().deviceScanAsked) return
 
         preferencesManager.update { it.copy(deviceScanAsked = true) }
-        runCatching { mediaPermissionLauncher.launch(deviceDocumentsSource.requiredPermissions()) }
+        // Android 11+ has no runtime dialog for all-files access; the in-app permission card on the
+        // documents screen opens the system screen instead, so there is nothing to launch here.
+        val permissions = deviceDocumentsSource.requiredPermissions()
+        if (permissions.isNotEmpty()) {
+            runCatching { mediaPermissionLauncher.launch(permissions) }
+        }
     }
 }
 

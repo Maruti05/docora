@@ -1,6 +1,7 @@
 package com.vedica.labs.ind.app.docora.ui.screens
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -12,9 +13,12 @@ import com.vedica.labs.ind.app.docora.core.model.Document
 import com.vedica.labs.ind.app.docora.core.model.DocumentCategory
 import com.vedica.labs.ind.app.docora.core.model.DocumentFilter
 import com.vedica.labs.ind.app.docora.core.model.DocumentImportRequest
+import com.vedica.labs.ind.app.docora.core.model.DocumentSort
 import com.vedica.labs.ind.app.docora.core.model.DocumentSource
 import com.vedica.labs.ind.app.docora.core.model.DocumentType
 import com.vedica.labs.ind.app.docora.core.model.SmartCollection
+import com.vedica.labs.ind.app.docora.core.model.SortDirection
+import com.vedica.labs.ind.app.docora.core.model.SortOrder
 import com.vedica.labs.ind.app.docora.core.model.ViewMode
 import com.vedica.labs.ind.app.docora.core.repository.DocumentRepository
 import com.vedica.labs.ind.app.docora.core.storage.DeviceDocument
@@ -44,6 +48,7 @@ import javax.inject.Inject
 data class DocumentsUiState(
     val query: String = "",
     val filter: DocumentFilter = DocumentFilter.ALL,
+    val sort: DocumentSort = DocumentSort.Default,
     val viewMode: ViewMode = ViewMode.default,
     val documents: List<Document> = emptyList(),
     val deviceDocuments: List<DeviceDocument> = emptyList(),
@@ -84,6 +89,7 @@ class DocumentsViewModel @Inject constructor(
     private data class Controls(val query: String, val filter: DocumentFilter)
 
     private val controls = MutableStateFlow(Controls("", DocumentFilter.ALL))
+    private val sortFlow = MutableStateFlow(DocumentSort.Default)
     private val viewModeFlow = MutableStateFlow(ViewMode.default)
     private val permissionFlow = MutableStateFlow(deviceDocumentsSource.hasPermission())
     private val deviceFlow = MutableStateFlow<List<DeviceDocument>>(emptyList())
@@ -95,11 +101,13 @@ class DocumentsViewModel @Inject constructor(
     /** How many documents the library window currently holds; [loadMore] grows it. */
     private val windowFlow = MutableStateFlow(DocumentRepository.DEFAULT_PAGE_SIZE)
 
-    private val libraryFlow = combine(controls.debounce(200), windowFlow) { c, window -> c to window }
-        .flatMapLatest { (c, window) ->
+    private val libraryFlow = combine(controls.debounce(200), windowFlow, sortFlow) { c, window, sort ->
+        Triple(c, window, sort)
+    }.flatMapLatest { (c, window, sort) ->
             documentRepository.observeCollection(
                 collection = SmartCollection.ALL,
                 filter = c.filter,
+                sort = sort,
                 searchQuery = c.query.trim().ifBlank { null },
                 limit = window,
             )
@@ -130,21 +138,32 @@ class DocumentsViewModel @Inject constructor(
         metaFlow,
         documentRepository.observeKnownUris(),
         syncingFlow,
-    ) { documents, c, meta, knownUris, syncing ->
+        sortFlow,
+    ) { args ->
+        @Suppress("UNCHECKED_CAST")
+        val documents = args[0] as List<Document>
+        val c = args[1] as Controls
+        val meta = args[2] as BrowserMeta
+        @Suppress("UNCHECKED_CAST")
+        val knownUris = args[3] as Set<String>
+        val syncing = args[4] as Boolean
+        val sort = args[5] as DocumentSort
         val query = c.query.trim()
         // Anything already imported leaves the device inbox, so the two sections never list the
         // same file twice and the inbox shrinks as the scan works through the device.
         val inbox = meta.device.filterNot { it.uri in knownUris }
+        val filteredInbox = if (query.isEmpty()) {
+            inbox
+        } else {
+            inbox.filter { it.displayName.contains(query, ignoreCase = true) }
+        }
         DocumentsUiState(
             query = c.query,
             filter = c.filter,
+            sort = sort,
             viewMode = meta.viewMode,
             documents = documents,
-            deviceDocuments = if (query.isEmpty()) {
-                inbox
-            } else {
-                inbox.filter { it.displayName.contains(query, ignoreCase = true) }
-            },
+            deviceDocuments = sortDeviceDocuments(filteredInbox, sort),
             hasStoragePermission = meta.permission,
             deviceLoading = meta.deviceLoading,
             isLoading = false,
@@ -164,7 +183,12 @@ class DocumentsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            viewModeFlow.value = preferencesManager.settings.first().defaultViewMode
+            val settings = preferencesManager.settings.first()
+            viewModeFlow.value = settings.defaultViewMode
+            sortFlow.value = DocumentSort(
+                order = settings.defaultSortOrder,
+                direction = settings.defaultSortDirection,
+            )
             if (deviceDocumentsSource.hasPermission()) refreshDeviceDocuments()
         }
     }
@@ -180,6 +204,23 @@ class DocumentsViewModel @Inject constructor(
     fun setFilter(filter: DocumentFilter) {
         windowFlow.value = DocumentRepository.DEFAULT_PAGE_SIZE
         controls.value = controls.value.copy(filter = filter)
+    }
+
+    /**
+     * Applies a new sort order from the Documents sort sheet (PRD §16).
+     *
+     * A new sort is a new result set, so the paging window restarts; the choice is also saved
+     * as the default sort so the library, folders and restarts keep using it.
+     */
+    fun setSort(sort: DocumentSort) {
+        if (sortFlow.value == sort) return
+        windowFlow.value = DocumentRepository.DEFAULT_PAGE_SIZE
+        sortFlow.value = sort
+        viewModelScope.launch {
+            preferencesManager.update {
+                it.copy(defaultSortOrder = sort.order, defaultSortDirection = sort.direction)
+            }
+        }
     }
 
     /** Grows the library window by one page; called when the list reaches its end. */
@@ -245,13 +286,34 @@ class DocumentsViewModel @Inject constructor(
 
     fun storagePermissions(): Array<String> = deviceDocumentsSource.requiredPermissions()
 
+    /** True when the grant has to be made on the system "All files access" screen (Android 11+). */
+    fun requiresAllFilesAccess(): Boolean = deviceDocumentsSource.requiresAllFilesAccess()
+
+    /**
+     * Sends the user to the system screen that grants "All files access".
+     *
+     * Android 11+ has no runtime dialog for that permission, so the app has to open the screen
+     * itself; the resulting grant is picked up by the resume check (see the screen's lifecycle
+     * observer) which then runs the scan.
+     */
+    fun openAllFilesAccessSettings() {
+        val intent = deviceDocumentsSource.allFilesAccessIntent()
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }
+    }
+
+    /**
+     * Re-reads the storage grant after a permission dialog and on every resume - the all-files
+     * grant is made on a system screen and only becomes visible once the app returns to the
+     * foreground. A pass only runs on a *change* in access, so an ordinary resume costs nothing.
+     */
     fun onStoragePermissionResult() {
         val granted = deviceDocumentsSource.hasPermission()
+        val changed = granted != permissionFlow.value
         permissionFlow.value = granted
-        if (granted) {
-            refreshDeviceDocuments()
-        } else {
-            deviceFlow.value = emptyList()
+        when {
+            granted && changed -> refreshDeviceDocuments()
+            !granted -> deviceFlow.value = emptyList()
         }
     }
 
@@ -263,8 +325,11 @@ class DocumentsViewModel @Inject constructor(
      *
      * Overlapping calls are cheap: [DeviceLibrarySynchronizer] serialises them and a second pass
      * simply finds nothing left to import.
+     *
+     * [reportWhenUnchanged] makes a manual refresh confirm that the library is already current, so
+     * the button never feels inert; the automatic path stays silent unless something was imported.
      */
-    fun refreshDeviceDocuments() {
+    fun refreshDeviceDocuments(reportWhenUnchanged: Boolean = false) {
         viewModelScope.launch {
             syncingFlow.value = true
             deviceLoadingFlow.value = true
@@ -280,8 +345,12 @@ class DocumentsViewModel @Inject constructor(
             deviceLoadingFlow.value = false
             syncingFlow.value = false
 
-            if (outcome.imported > 0) {
-                messageFlow.value = context.getString(R.string.snack_scan_imported, outcome.imported)
+            when {
+                outcome.imported > 0 -> messageFlow.value =
+                    context.getString(R.string.snack_scan_imported, outcome.imported)
+                // A manual refresh always answers, so the control never feels inert.
+                reportWhenUnchanged -> messageFlow.value =
+                    context.getString(R.string.snack_scan_up_to_date)
             }
         }
     }
@@ -410,6 +479,30 @@ class DocumentsViewModel @Inject constructor(
                 handler.renderThumbnail(parsed, 0, targetWidth).getOrNull()
             }.getOrNull()
         }
+
+    /**
+     * Sorts the in-memory device inbox with the same field + direction as the library query,
+     * so switching the sort never makes the two sections disagree (PRD §16).
+     *
+     * The library is sorted by SQLite ([DocumentQueryBuilder]); MediaStore rows are not in that
+     * table, so this mirrors its comparator in Kotlin. Pinned documents are a library concept
+     * and do not apply here.
+     */
+    private fun sortDeviceDocuments(
+        devices: List<DeviceDocument>,
+        sort: DocumentSort,
+    ): List<DeviceDocument> {
+        val comparator: Comparator<DeviceDocument> = when (sort.order) {
+            SortOrder.NAME -> compareBy { it.displayName.lowercase() }
+            SortOrder.DATE_MODIFIED -> compareBy { it.modifiedAt }
+            SortOrder.DATE_CREATED -> compareBy { it.modifiedAt }
+            SortOrder.SIZE -> compareBy { it.sizeBytes }
+            SortOrder.TYPE -> compareBy({ it.type.name }, { it.displayName.lowercase() })
+            SortOrder.LAST_OPENED -> compareBy { it.modifiedAt }
+        }
+        val ordered = devices.sortedWith(comparator.thenBy { it.displayName.lowercase() })
+        return if (sort.direction == SortDirection.ASCENDING) ordered else ordered.reversed()
+    }
 
     private companion object {
         /**

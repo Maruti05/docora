@@ -29,6 +29,8 @@
     <string name="search_indexing_pending">Some documents are still being indexed — results may grow.</string>
     <string name="search_snippet_from_text">Matched in document text</string>
     <string name="home_see_all">See all</string>
+    <string name="home_hero_greeting">Your library</string>
+    <string name="home_hero_storage">%1$s used on this device</string>
     <string name="processing_title">Processing documents</string>
     <string name="processing_progress">%1$d of %2$d</string>
 
@@ -92,6 +94,7 @@
     <string name="action_delete_folder">Delete folder</string>
     <string name="action_sort">Sort</string>
     <string name="action_view_mode">View</string>
+    <string name="action_refresh">Refresh</string>
     <string name="action_more_options">More options</string>
     <string name="action_back">Back</string>
     <string name="action_next">Next</string>
@@ -108,7 +111,7 @@
 
     <!-- Runtime permissions (requested just in time, PRD §66) -->
     <string name="permission_storage_title">Access files on this device</string>
-    <string name="permission_storage_message">Docora reads this device\'s storage to list the documents you already have so you can open and view them here. Everything happens on your phone.</string>
+    <string name="permission_storage_message">Docora reads this device\'s storage to list every document you already have - PDFs, office files, images and more - so you can open and view them here. Everything happens on your phone.</string>
     <string name="permission_camera_title">Camera access is needed to scan</string>
     <string name="action_allow">Allow</string>
     <string name="action_open_settings">Open settings</string>
@@ -348,6 +351,7 @@
     <string name="snack_imported">Imported %1$d documents</string>
     <string name="snack_import_failed">Could not import %1$d files</string>
     <string name="snack_scan_imported">Added %1$d documents from this device</string>
+    <string name="snack_scan_up_to_date">Your library is up to date</string>
     <string name="snack_category_set">Tagged as %1$s</string>
     <string name="snack_category_cleared">Tag removed</string>
     <string name="snack_indexing_queued">Indexing started</string>
@@ -441,7 +445,7 @@
     <string name="settings_sort_order">Default sort</string>
     <string name="settings_section_security">Security</string>
     <string name="settings_app_lock">App lock</string>
-    <string name="settings_app_lock_summary">Require biometric or device unlock to open Docora</string>
+    <string name="settings_app_lock_summary">Requires your fingerprint, face or device PIN to open Docora.</string>
     <string name="settings_auto_lock">Auto-lock timeout</string>
     <string name="settings_auto_lock_immediately">Immediately</string>
     <string name="settings_auto_lock_1">After 1 minute</string>
@@ -449,7 +453,7 @@
     <string name="settings_auto_lock_15">After 15 minutes</string>
     <string name="settings_auto_lock_never">Never</string>
     <string name="settings_secure_screen">Block screenshots and recent-apps preview</string>
-    <string name="settings_secure_screen_summary">Adds FLAG_SECURE to every app window.</string>
+    <string name="settings_secure_screen_summary">Blocks screenshots and hides document previews in the recent-apps list.</string>
     <string name="settings_encrypt_text">Encrypt recognised text at rest</string>
     <string name="settings_encrypt_text_summary">Keeps recognised text encrypted with an Android Keystore key. Full-text search then covers titles, tags and metadata only.</string>
     <string name="settings_section_scanner">Scanner</string>
@@ -505,6 +509,10 @@
         <item quantity="one">%1$d document</item>
         <item quantity="other">%1$d documents</item>
     </plurals>
+    <plurals name="plural_scans">
+        <item quantity="one">%1$d scan</item>
+        <item quantity="other">%1$d scans</item>
+    </plurals>
     <plurals name="plural_pages">
         <item quantity="one">%1$d page</item>
         <item quantity="other">%1$d pages</item>
@@ -547,10 +555,28 @@
     <string name="scan_keep_editing">Keep editing</string>
     <string name="scan_discard">Discard scan</string>
     <string name="scan_torch">Light</string>
+    <string name="scan_hold_steady">Hold still — locking onto the page</string>
+    <string name="scan_gallery_import">Import from gallery</string>
+    <string name="scan_grid">Grid</string>
+    <string name="scan_options">Filters and modes</string>
+    <string name="scan_import_failed">That image could not be added. Try another one.</string>
     <string name="scan_page_number_short">%1$d</string>
 
     <!-- Documents screen (sorting, layout, selection) -->
     <string name="documents_sort_title">Sort by</string>
+    <string name="documents_sort_recent">Recent</string>
+    <string name="documents_sort_newest">Newest first</string>
+    <string name="documents_sort_oldest">Oldest first</string>
+    <string name="documents_sort_recently_opened">Recently opened</string>
+    <string name="documents_sort_name">Name</string>
+    <string name="documents_sort_a_to_z">A to Z</string>
+    <string name="documents_sort_z_to_a">Z to A</string>
+    <string name="documents_sort_size">Size</string>
+    <string name="documents_sort_smallest">Smallest first</string>
+    <string name="documents_sort_largest">Largest first</string>
+    <string name="documents_sort_advanced">More options</string>
+    <string name="documents_sort_created_hint">Date created — tap again to flip direction</string>
+    <string name="documents_sort_type_hint">File type — tap again to flip direction</string>
     <string name="documents_layout_title">Layout</string>
     <string name="documents_sort_direction">Direction</string>
     <string name="documents_summary">%1$s · %2$s</string>
@@ -595,4 +621,92 @@
     <string name="settings_privacy_local">Nothing leaves this device</string>
     <string name="settings_scanner_summary">Quality, mode and enhancement applied to new scans</string>
     <string name="settings_cache_summary">Removed %1$d files</string>
+
+    <!-- Settings screen (redesigned) -->
+    <string name="settings_hero_title">Your library</string>
+    <string name="settings_hero_summary">%1$d documents · %2$d scans · %3$s</string>
+    <string name="settings_privacy_badge">On this device only</string>
+    <string name="settings_privacy_badge_icon">Privacy: nothing leaves this device</string>
+
+    <string name="settings_theme_summary">System follows the device; Light and Dark always apply.</string>
+    <string name="settings_dynamic_colour_unsupported">Needs Android 12 or newer</string>
+
+    <string name="settings_view_mode_summary">The layout the browser opens in.</string>
+    <string name="settings_view_list">List</string>
+    <string name="settings_view_list_summary">One document per row, with details.</string>
+    <string name="settings_view_compact">Compact rows</string>
+    <string name="settings_view_compact_summary">Dense single-line rows for large libraries.</string>
+    <string name="settings_view_grid">Grid</string>
+    <string name="settings_view_grid_summary">Thumbnails in two or more columns.</string>
+    <string name="settings_view_large">Large tiles</string>
+    <string name="settings_view_large_summary">Big previews, one per row.</string>
+
+    <string name="settings_sort_order_summary">What the browser sorts by first.</string>
+    <string name="settings_sort_name">Name</string>
+    <string name="settings_sort_date_modified">Date modified</string>
+    <string name="settings_sort_date_created">Date created</string>
+    <string name="settings_sort_size">File size</string>
+    <string name="settings_sort_type">File type</string>
+    <string name="settings_sort_last_opened">Last opened</string>
+    <string name="settings_sort_direction">Sort direction</string>
+    <string name="settings_sort_direction_summary">Applies to the sort you choose above.</string>
+    <string name="settings_sort_ascending">Ascending</string>
+    <string name="settings_sort_ascending_summary">A to Z, oldest or smallest first.</string>
+    <string name="settings_sort_descending">Descending</string>
+    <string name="settings_sort_descending_summary">Z to A, newest or largest first.</string>
+
+    <string name="settings_app_lock_unlock_title">Turn on App Lock</string>
+    <string name="settings_app_lock_unlock_subtitle">Confirm it is you before App Lock starts protecting Docora.</string>
+    <string name="settings_app_lock_failed">App Lock could not be turned on. Authentication did not succeed.</string>
+    <string name="settings_auto_lock_summary">How long Docora may stay in the background before it locks again.</string>
+    <string name="settings_lock_now">Lock now</string>
+    <string name="settings_lock_now_summary">Locks Docora straight away, until you unlock it again.</string>
+    <string name="settings_lock_now_done">Docora is locked</string>
+    <string name="settings_lock_now_requires_app_lock">Turn on App Lock first</string>
+
+    <string name="settings_scanner_mode">Capture mode</string>
+    <string name="settings_scanner_mode_summary">Applies to every new scan.</string>
+    <string name="settings_scanner_quality_summary">Trade-off between detail and file size.</string>
+    <string name="settings_scanner_quality_standard_summary">Smallest files, fastest processing.</string>
+    <string name="settings_scanner_quality_high_summary">Balanced detail and file size.</string>
+    <string name="settings_scanner_quality_maximum_summary">Most detail, largest files.</string>
+    <string name="settings_scanner_default_filter_summary">Colour treatment applied after capture.</string>
+    <string name="settings_scanner_auto_capture_summary">Takes the picture once the page is framed.</string>
+
+    <string name="settings_trash_retention_summary">How long deleted documents stay in the trash.</string>
+    <string name="settings_trash_retention_summary_forever">Until you empty the trash yourself.</string>
+    <string name="settings_thumbnail_cache_summary">%1$d MB limit · %2$s in use</string>
+    <string name="settings_thumbnail_cache_sheet_title">Thumbnail cache limit</string>
+    <string name="settings_thumbnail_cache_sheet_message">Thumbnails are rebuilt automatically when they are needed again. Lowering the limit removes the oldest ones first.</string>
+
+    <string name="settings_index_rebuild">Rebuild search index</string>
+    <string name="settings_index_rebuild_summary">Re-reads the library so titles, tags and notes are searchable again.</string>
+    <string name="settings_index_running">Rebuilding the search index… %1$d%%</string>
+    <string name="settings_index_done">Search index rebuilt · %1$d documents</string>
+    <string name="settings_index_failed">The search index could not be rebuilt.</string>
+    <string name="settings_search_history_summary_count">%1$d recent searches are stored on this device.</string>
+    <string name="settings_search_history_summary_empty">Nothing stored yet.</string>
+
+    <string name="settings_section_storage_search">Storage &amp; search</string>
+    <string name="settings_section_library_summary">How the browser opens and what it sorts by</string>
+    <string name="settings_sorting">Sorting</string>
+    <string name="settings_sorting_summary">Choose what the library sorts by and which way.</string>
+    <string name="settings_section_backup_reset">Backup &amp; reset</string>
+    <string name="settings_backup_export_summary2">Folders, tags and document details as a portable JSON file. Document files themselves are not copied.</string>
+    <string name="settings_backup_import_summary2">Merge folders, tags and document details from a Docora backup file.</string>
+    <string name="settings_backup_running">Writing the backup…</string>
+    <string name="settings_backup_failed">The backup could not be written.</string>
+    <string name="settings_restore_running">Reading the backup…</string>
+    <string name="settings_restore_failed">This file is not a Docora backup.</string>
+    <string name="settings_restore_empty">The backup did not contain anything to restore.</string>
+    <string name="settings_reset">Reset all settings</string>
+    <string name="settings_reset_summary">Returns every option on this screen to its default. Your documents are never touched.</string>
+    <string name="settings_reset_confirm_title">Reset all settings?</string>
+    <string name="settings_reset_confirm_message">Theme, layout, security and scanner options return to their defaults. Folders, tags and documents stay exactly as they are.</string>
+    <string name="settings_reset_confirm_action">Reset</string>
+    <string name="settings_reset_done">Settings reset to defaults</string>
+    <string name="settings_backup_exported">Backup saved · %1$d folders, %2$d tags, %3$d documents</string>
+    <string name="settings_restore_done">Restored %1$d folders, %2$d tags · %3$d documents re-linked</string>
+    <string name="settings_operation_failed">That did not work. Please try again.</string>
+    <string name="settings_cache_apply">Apply</string>
 </resources>

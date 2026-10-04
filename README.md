@@ -71,7 +71,7 @@ The manifest comment states it plainly: *"Docora performs every core operation o
 ### 📥 Import & storage
 
 - SAF import — the primary ingestion path
-- Optional **"On this device"** browsing via `MediaStore` (the only reason `READ_MEDIA_*` is declared)
+- **"On this device"** discovery via `MediaStore`, imported automatically (backed by the All files access grant on Android 11+)
 - Accepts documents from other apps via `VIEW`, `SEND` and `SEND_MULTIPLE` intent filters
 - Imports arrive tagged `SHARED_IN`; scans as `SCANNED`
 - SHA-256 checksum per document for duplicate detection
@@ -96,6 +96,7 @@ Full-text search over an SQLite **FTS4** virtual table.
 - Every hit reports *which* field matched, so a result is never unexplained
 - Ranking is computed in Kotlin because Android's FTS4 build has no `bm25()` and no `matchinfo()` scoring
 - Recent-search history
+- “Rebuild search index” in Settings re-writes the FTS rows from the live library
 
 ### 👁 Viewing
 
@@ -108,11 +109,13 @@ Full-text search over an SQLite **FTS4** virtual table.
 
 | Feature | Implementation |
 |---|---|
-| App Lock | `BiometricPrompt` via AndroidX Biometric |
+| App Lock | `BiometricPrompt` via AndroidX Biometric; enabling requires a fresh auth |
 | Auto-lock | Immediately / 1 / 5 / 15 min / never |
+| Lock now | Settings action that locks the vault immediately |
 | Secure Screen | `FLAG_SECURE` — blocks screenshots and task-preview thumbnails |
 | Text encryption | AES-256-**GCM**, non-exportable Keystore key, fresh IV per call |
 | Backup | `allowBackup=false`, `fullBackupContent=false` |
+| Metadata backup | Folders/tags/document metadata as JSON via SAF (`core/backup`) |
 | Sharing | Raw paths are never exposed — only `FileProvider` content URIs |
 
 The Keystore key is intentionally **not** bound to user authentication, so background workers can decrypt without a prompt. The source documents this trade-off explicitly: the key stays hardware-backed, while App Lock guards the UI.
@@ -122,6 +125,7 @@ The Keystore key is intentionally **not** bound to user authentication, so backg
 - Custom design system: spacing scale, shapes, gradients, motion tokens, typography
 - Material You dynamic colour, with a first-class dark theme
 - `reduceMotion` setting **shortens** animations rather than removing them, so state changes stay visible
+- Settings: grouped cards, bottom-sheet pickers, working search-index rebuild, backup/restore
 - RTL support (`supportsRtl`), 494 localised strings
 
 ---
@@ -285,10 +289,10 @@ Release signing is **intentionally not committed**. Supply your own keystore out
 | `CAMERA` | Just-in-time, when the scanner opens | Capture pages |
 | `USE_BIOMETRIC` | Only when App Lock is enabled | Unlock the vault |
 | `POST_NOTIFICATIONS` | Android 13+ | Background processing status |
-| `READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO` | Optional | The "On this device" row only |
-| `READ_EXTERNAL_STORAGE` | `maxSdkVersion="32"` | Same, for older devices |
+| `MANAGE_EXTERNAL_STORAGE` (All files access) | User grant, Android 11+ | Index the documents already on the device - MediaStore hides non-media files (PDF, Word, Excel) without it |
+| `READ_EXTERNAL_STORAGE` | `maxSdkVersion="29"` | Same, on Android 10 and below |
 
-**Never requested:** `INTERNET` (explicitly removed), broad storage access. Camera hardware is declared `required="false"`, so the app installs on devices without a camera and degrades gracefully.
+**Never requested:** `INTERNET` (explicitly removed), `WRITE_EXTERNAL_STORAGE`. All files access powers the read-only on-device index only, and every core operation stays on the phone. Camera hardware is declared `required="false"`, so the app installs on devices without a camera and degrades gracefully.
 
 ---
 

@@ -3,9 +3,13 @@ package com.vedica.labs.ind.app.docora.core.storage
 import android.Manifest
 import android.content.ContentUris
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.MediaStore
+import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.vedica.labs.ind.app.docora.core.model.DocumentImportRequest
 import com.vedica.labs.ind.app.docora.core.model.DocumentSource
@@ -60,35 +64,64 @@ data class DeviceDocument(
  * permission-free path for picking individual files.
  *
  * Permission model (PRD §66):
- *  * Android 13+ (API 33+): `READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO`, plus
- *    `READ_MEDIA_VISUAL_USER_SELECTED` on Android 14 for partial photo access.
- *  * Android 6-12: `READ_EXTERNAL_STORAGE`.
- * The UI requests the right set through [requiredPermissions] before calling [query].
+ *  * Android 11+ (API 30+): the "All files access" special permission, checked through
+ *    [Environment.isExternalStorageManager]. MediaStore hides non-media documents (PDF, Word,
+ *    Excel, text) from apps that only hold the read-media grants, so this is the one grant that
+ *    makes the whole document set reachable.
+ *  * Android 10 and below: the ordinary `READ_EXTERNAL_STORAGE` runtime grant.
+ * [requiresAllFilesAccess] tells the UI which route to take - the system settings page or the
+ * runtime dialog - before calling [query].
  */
 @Singleton
 class DeviceDocumentsSource @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
 
-    /** Permissions to request before [query]; the set differs per Android version. */
-    fun requiredPermissions(): Array<String> = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
-            if (Build.VERSION.SDK_INT >= 34) {
-                arrayOf(
-                    Manifest.permission.READ_MEDIA_IMAGES,
-                    Manifest.permission.READ_MEDIA_VIDEO,
-                    Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
-                )
-            } else {
-                arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
-            }
-        else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+    /**
+     * Runtime permissions to request before [query], or an empty array when the platform uses the
+     * "All files access" special permission instead (Android 11+), in which case the caller opens
+     * [allFilesAccessIntent] rather than showing a permission dialog.
+     */
+    fun requiredPermissions(): Array<String> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            emptyArray()
+        } else {
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+
+    /**
+     * True when Docora may read every document on the device.
+     *
+     * Android 11+ (API 30+) gates non-media files behind "All files access"; Android 10 and below
+     * only need the legacy read grant (the manifest opts into legacy storage so the check is
+     * meaningful there). One check drives the discovery, the automatic scan and the permission
+     * card, so the three can never disagree.
+     */
+    fun hasPermission(): Boolean = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> Environment.isExternalStorageManager()
+        else -> ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
-    /** True when at least one grant covers the query; safe to hit MediaStore. */
-    fun hasPermission(): Boolean = requiredPermissions().any { permission ->
-        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
-    }
+    /** True when the user has to grant access on the system "All files access" screen. */
+    fun requiresAllFilesAccess(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()
+
+    /**
+     * Intent for the screen where "All files access" is granted.
+     *
+     * The app-specific page is preferred so the user lands straight on Docora's toggle; some OEM
+     * builds only expose the full list, hence the fallback. Launching is the caller's job (it owns
+     * the foreground activity), wrapped in `runCatching` because a handful of ROMs handle neither.
+     */
+    fun allFilesAccessIntent(): Intent =
+        Intent(
+            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+            Uri.fromParts("package", context.packageName, null),
+        )
+
 
 
     /**
@@ -152,13 +185,19 @@ class DeviceDocumentsSource @Inject constructor(
                         }
                         val uri = ContentUris.withAppendedId(base, id).toString()
                         val resolved = MimeTypes.resolve(mime, name)
+                        val type = DocumentType.from(resolved, MimeTypes.extensionOf(name))
+                        // Now that non-media rows are visible (All files access), the raw result set
+                        // also contains apks, binaries, databases and the like. Anything Docora
+                        // cannot classify as a document is dropped here, so neither the device inbox
+                        // nor the automatic import is ever polluted with files the app cannot open.
+                        if (type == DocumentType.UNKNOWN) continue
                         results += DeviceDocument(
                             uri = uri,
                             displayName = name,
                             mimeType = resolved,
                             sizeBytes = size,
                             modifiedAt = modified,
-                            type = DocumentType.from(resolved, MimeTypes.extensionOf(name)),
+                            type = type,
                         )
                     }
                 }

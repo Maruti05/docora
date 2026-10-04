@@ -13,11 +13,18 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Device discovery (user requested): list files already on the phone via MediaStore.
-         SAF import remains the primary path; this only powers the optional "On this device" row. -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <!-- Device discovery (user requested): index the documents already on the phone.
+         On Android 11+ (API 30+) MediaStore hides non-media documents (PDF, Word, Excel, text)
+         from every app that only holds the read-media grants, so Docora requests "All files
+         access" - a use Google Play explicitly permits for document-management apps - and falls
+         back to the legacy read grant on Android 10 and below. SAF import remains the
+         permission-free path for picking individual files. -->
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
     <uses-permission
         android:name="android.permission.INTERNET"
         tools:node="remove" />
@@ -44,6 +51,7 @@
         android:name=".DocoraApplication"
         android:allowBackup="false"
         android:enableOnBackInvokedCallback="true"
+        android:requestLegacyExternalStorage="true"
         android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"

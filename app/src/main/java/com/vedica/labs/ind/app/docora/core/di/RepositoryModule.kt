@@ -1,5 +1,7 @@
 package com.vedica.labs.ind.app.docora.core.di
 
+import com.vedica.labs.ind.app.docora.core.backup.BackupRepository
+import com.vedica.labs.ind.app.docora.core.backup.BackupRepositoryImpl
 import com.vedica.labs.ind.app.docora.core.ocr.MlKitOcrEngine
 import com.vedica.labs.ind.app.docora.core.ocr.OcrEngine
 import com.vedica.labs.ind.app.docora.core.repository.DocumentRepository
@@ -41,6 +43,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindSearchRepository(impl: SearchRepositoryImpl): SearchRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindBackupRepository(impl: BackupRepositoryImpl): BackupRepository
 
     @Binds
     @Singleton

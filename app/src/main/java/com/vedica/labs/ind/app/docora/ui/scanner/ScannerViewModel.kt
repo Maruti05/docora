@@ -2,6 +2,7 @@ package com.vedica.labs.ind.app.docora.ui.scanner
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vedica.labs.ind.app.docora.R
@@ -11,10 +12,12 @@ import com.vedica.labs.ind.app.docora.core.files.AppStorage
 import com.vedica.labs.ind.app.docora.core.imaging.AutoCaptureDecider
 import com.vedica.labs.ind.app.docora.core.imaging.ScanImageProcessor
 import com.vedica.labs.ind.app.docora.core.model.Document
+import com.vedica.labs.ind.app.docora.core.model.DocumentDetection
 import com.vedica.labs.ind.app.docora.core.model.FlashMode
 import com.vedica.labs.ind.app.docora.core.model.ScanFilter
 import com.vedica.labs.ind.app.docora.core.model.ScanMode
 import com.vedica.labs.ind.app.docora.core.model.ScanOutput
+import com.vedica.labs.ind.app.docora.core.model.QuadCorners
 import com.vedica.labs.ind.app.docora.core.model.ScannerQuality
 import com.vedica.labs.ind.app.docora.core.repository.DocumentRepository
 import com.vedica.labs.ind.app.docora.core.scanner.ScanDocumentWriter
@@ -41,6 +44,14 @@ data class ScanPageUi(
     val filePath: String,
     val uri: String,
     val rotationDegrees: Int = 0,
+    /**
+     * The document outline detected when this page was shot, normalised to the photo.
+     *
+     * Stored per page rather than kept as a single live value because each page is framed
+     * individually: page two may be photographed at a different angle, and cropping it with page
+     * one's corners would cut off exactly the content the detector had found.
+     */
+    val corners: QuadCorners = QuadCorners.fullFrame(),
 ) {
     val file: File get() = File(filePath)
 }
@@ -64,6 +75,12 @@ data class ScannerUiState(
     val saveTotal: Int = 0,
     /** Auto capture hint: the current frame looks like a document and is holding still. */
     val pageLooksReady: Boolean = false,
+    /** Latest detected page outline, or null while nothing is found. Drives the live overlay. */
+    val detectedCorners: QuadCorners? = null,
+    /** Detector confidence for [detectedCorners]; also fades the outline out when the page leaves. */
+    val detectionConfidence: Float = 0f,
+    /** Steadiness of the frame, 0..1. Drives the auto-capture progress ring and the snap outline. */
+    val stability: Float = 0f,
     val cameraReady: Boolean = false,
     val permissionDenied: Boolean = false,
 ) {
@@ -130,11 +147,16 @@ class ScannerViewModel @Inject constructor(
      * The page joins the strip immediately (a capture is never silently lost) and its preview is
      * filled in as soon as it has been decoded, which is why those are two separate updates.
      */
-    fun onPageCaptured(file: File) {
+    fun onPageCaptured(file: File, corners: QuadCorners? = null) {
         val page = ScanPageUi(
             id = ++pageSequence,
             filePath = file.absolutePath,
             uri = runCatching { appStorage.uriFor(file) }.getOrDefault(file.absolutePath),
+            // Bake in whatever the detector was looking at when the shutter fired, so the saved
+            // page is cropped to the document instead of to the whole frame. A file that never came
+            // through this camera - an imported photo - passes no quad of its own and is kept whole,
+            // because the outline currently on screen describes the live preview, not that image.
+            corners = corners ?: _state.value.detectedCorners ?: QuadCorners.fullFrame(),
         )
         _state.update { current ->
             current.copy(pages = current.pages + page, isProcessing = true)
@@ -280,22 +302,87 @@ class ScannerViewModel @Inject constructor(
     // ------------------------------------------------------------------ auto capture
 
     /**
-     * Feeds the auto-capture heuristic and honours its verdict.
+     * Feeds one analysed frame: the auto-capture heuristic and the edge detector together.
+     *
+     * They are handled in the same call because they read the same frame - the detector supplies the
+     * outline the user sees, the heuristic decides whether to fire, and the steadiness the heuristic
+     * already computed is reused as the auto-snap progress so the two never disagree on screen.
      *
      * The cooldown is what makes auto capture usable: without it, holding a page still for a second
      * would produce a burst of identical pages, because the frame stays "steady" the entire time.
      */
-    fun onAutoCaptureVerdict(verdict: AutoCaptureDecider.Verdict) {
+    fun onFrameAnalyzed(verdict: AutoCaptureDecider.Verdict, detection: DocumentDetection) {
         val ready = verdict.documentVisible && verdict.steady
-        if (ready != _state.value.pageLooksReady) {
-            _state.update { it.copy(pageLooksReady = ready) }
-        }
+        val stability = (verdict.stableStreak.toFloat() / STABLE_FRAMES_FOR_CAPTURE).coerceIn(0f, 1f)
         val current = _state.value
+
+        // Analysis runs at the camera's frame rate, so a state write per frame would recompose the
+        // whole HUD continuously - including while the user is holding perfectly still, which is
+        // exactly when they are waiting for auto capture. Publishing only meaningful movement keeps
+        // the overlay smooth without paying for identical frames.
+        val cornersMoved = quadMoved(current.detectedCorners, detection.corners)
+        val confidenceShifted = kotlin.math.abs(current.detectionConfidence - detection.confidence) > 0.02f
+        val stabilityShifted = kotlin.math.abs(current.stability - stability) > 0.01f
+        if (ready != current.pageLooksReady || cornersMoved || confidenceShifted || stabilityShifted) {
+            _state.update {
+                it.copy(
+                    pageLooksReady = ready,
+                    stability = stability,
+                    detectedCorners = detection.corners,
+                    detectionConfidence = detection.confidence,
+                )
+            }
+        }
+
         if (!verdict.shouldCapture || !current.autoCapture || current.isBusy) return
         val now = System.currentTimeMillis()
         if (now - lastAutoCaptureAt < AUTO_CAPTURE_COOLDOWN_MS) return
         lastAutoCaptureAt = now
         _captureRequests.tryEmit(Unit)
+    }
+
+    /**
+     * True when a newly detected quad differs from the current one by more than a hair.
+     *
+     * The detector eases its corners every frame, so an exact comparison would never be equal; the
+     * threshold is what separates "the outline is moving" from "the outline is holding still and the
+     * last decimal changed".
+     */
+    private fun quadMoved(current: QuadCorners?, next: QuadCorners?): Boolean {
+        if (current == null || next == null) return current != next
+        val before = current.toPointList()
+        val after = next.toPointList()
+        return before.indices.any { index ->
+            kotlin.math.abs(before[index].x - after[index].x) > QUAD_EPSILON ||
+                kotlin.math.abs(before[index].y - after[index].y) > QUAD_EPSILON
+        }
+    }
+
+    /**
+     * Adds a page from the gallery instead of the camera.
+     *
+     * The picked file is copied into the staging area first: the content URI may point at a
+     * provider the app only has temporary access to, and the scan pipeline - previews, rotation,
+     * cropping and the final save - all work on files it owns.
+     */
+    fun importPicked(uri: Uri) {
+        viewModelScope.launch {
+            val file = withContext(Dispatchers.IO) {
+                runCatching {
+                    val target = appStorage.newStagingFile("import_${System.currentTimeMillis()}.jpg")
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        target.outputStream().use { output -> input.copyTo(output) }
+                    } ?: error("The picked file could not be opened")
+                    target
+                }.getOrNull()
+            }
+            if (file == null) {
+                DocoraLog.w(TAG, "import_failed", IllegalStateException(uri.toString()))
+                _message.value = context.getString(R.string.scan_import_failed)
+                return@launch
+            }
+            onPageCaptured(file, corners = QuadCorners.fullFrame())
+        }
     }
 
     // ------------------------------------------------------------------ save
@@ -324,6 +411,7 @@ class ScannerViewModel @Inject constructor(
                             targetLongEdge = snapshot.quality.targetLongEdgePx,
                             filter = snapshot.filter,
                             rotationDegrees = page.rotationDegrees,
+                            corners = page.corners,
                         )
                     } ?: error("Page ${index + 1} could not be processed")
                     processed += bitmap
@@ -434,5 +522,11 @@ class ScannerViewModel @Inject constructor(
 
         /** Time auto capture waits before it may fire again, so one page yields exactly one page. */
         const val AUTO_CAPTURE_COOLDOWN_MS = 2_500L
+
+        /** Stable frames the auto-capture gate demands; must match [AutoCaptureDecider]'s tuning. */
+        const val STABLE_FRAMES_FOR_CAPTURE = 6f
+
+        /** Movement, in normalised frame units, below which the outline is considered stationary. */
+        const val QUAD_EPSILON = 0.004f
     }
 }

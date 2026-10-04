@@ -16,6 +16,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -86,9 +87,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -97,6 +103,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.drawWithContent
 import com.vedica.labs.ind.app.docora.R
 import com.vedica.labs.ind.app.docora.core.model.FlashMode
+import com.vedica.labs.ind.app.docora.core.model.QuadCorners
 import com.vedica.labs.ind.app.docora.core.model.ScanFilter
 import com.vedica.labs.ind.app.docora.core.model.ScanMode
 import com.vedica.labs.ind.app.docora.ui.designsystem.LocalDocoraExtendedColors
@@ -900,69 +907,182 @@ fun ScanTopBar(
 }
 
 /**
- * Page guidance frame drawn over the preview.
+ * The live document outline drawn over the preview.
  *
- * Four corner brackets rather than a full rectangle: the corners are what the eye uses to line a
- * document up, and leaving the edges open keeps the preview readable. The colour shifts to the
- * "locked" accent once the frame looks like a document, which is the only signal the user needs that
- * auto capture is about to fire.
+ * When the detector has found a page the overlay shows what it actually found: everything outside
+ * the quad is dimmed, the quad is stroked, its corners get handles, and a bright segment sweeps the
+ * perimeter as the frame steadies - the same "about to snap" affordance the platform scanners use,
+ * so the auto-capture countdown is visible rather than a mystery.
+ *
+ * When nothing is found the overlay falls back to four corner brackets in the middle of the frame,
+ * which is both a target to aim at and an honest statement that the app is still looking.
+ *
+ * Everything is drawn in one [Canvas]: the scrim, the stroke, the handles, the progress and the
+ * optional rule-of-thirds grid are all paths on a single layer, which is what keeps the overlay from
+ * costing a recomposition per frame.
  */
 @Composable
-fun ScanGuideFrame(
+fun ScanDetectionOverlay(
+    corners: QuadCorners?,
+    confidence: Float,
+    stability: Float,
     locked: Boolean,
+    showGrid: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val extended = LocalDocoraExtendedColors.current
-    val accent by animateColorAsState(
-        targetValue = if (locked) extended.guideLocked else Color.White.copy(alpha = 0.75f),
-        animationSpec = tween(LocalDocoraMotion.current.standard),
-        label = "guide-accent",
+    val motion = LocalDocoraMotion.current
+    val outline by animateColorAsState(
+        targetValue = if (locked) extended.guideLocked else Color.White,
+        animationSpec = tween(motion.standard),
+        label = "detection-outline",
     )
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .border(1.dp, accent.copy(alpha = 0.28f), RoundedCornerShape(20.dp))
-            .drawWithContent {
-                drawContent()
-                val arm = size.minDimension * 0.14f
-                val inset = 6f
-                val stroke = 5f
-                // Top-left, top-right, bottom-right, bottom-left brackets.
-                drawLine(accent, Offset(inset, inset + arm), Offset(inset, inset), stroke, StrokeCap.Round)
-                drawLine(accent, Offset(inset, inset), Offset(inset + arm, inset), stroke, StrokeCap.Round)
-                drawLine(accent, Offset(size.width - inset - arm, inset), Offset(size.width - inset, inset), stroke, StrokeCap.Round)
-                drawLine(accent, Offset(size.width - inset, inset), Offset(size.width - inset, inset + arm), stroke, StrokeCap.Round)
-                drawLine(accent, Offset(size.width - inset, size.height - inset - arm), Offset(size.width - inset, size.height - inset), stroke, StrokeCap.Round)
-                drawLine(accent, Offset(size.width - inset, size.height - inset), Offset(size.width - inset - arm, size.height - inset), stroke, StrokeCap.Round)
-                drawLine(accent, Offset(inset + arm, size.height - inset), Offset(inset, size.height - inset), stroke, StrokeCap.Round)
-                drawLine(accent, Offset(inset, size.height - inset), Offset(inset, size.height - inset - arm), stroke, StrokeCap.Round)
-            },
+    val scrim by animateColorAsState(
+        targetValue = Color.Black.copy(alpha = 0.52f),
+        animationSpec = tween(motion.standard),
+        label = "detection-scrim",
     )
+    val points = corners?.toPointList()
+    // Fade the whole overlay with the detector's confidence, so a page leaving the frame dissolves
+    // instead of the outline blinking out of existence.
+    val weight = confidence.coerceIn(0f, 1f)
+    val appear = 0.3f + 0.7f * weight
+
+    Canvas(modifier = modifier) {
+        if (showGrid) {
+            val line = Color.White.copy(alpha = 0.18f)
+            val stroke = 1.dp.toPx()
+            for (step in 1..2) {
+                val x = size.width * step / 3f
+                val y = size.height * step / 3f
+                drawLine(line, Offset(x, 0f), Offset(x, size.height), stroke)
+                drawLine(line, Offset(0f, y), Offset(size.width, y), stroke)
+            }
+        }
+        if (points == null) {
+            drawGuideBrackets(outline.copy(alpha = 0.75f))
+            return@Canvas
+        }
+        val canvasPoints = points.map { Offset(it.x * size.width, it.y * size.height) }
+        val quad = Path().apply {
+            moveTo(canvasPoints[0].x, canvasPoints[0].y)
+            for (index in 1 until canvasPoints.size) lineTo(canvasPoints[index].x, canvasPoints[index].y)
+            close()
+        }
+
+        // Dim everything that is not the page: an even-odd fill of frame-minus-quad.
+        val outside = Path().apply {
+            addRect(Rect(Offset.Zero, Size(size.width, size.height)))
+            moveTo(canvasPoints[0].x, canvasPoints[0].y)
+            for (index in 1 until canvasPoints.size) lineTo(canvasPoints[index].x, canvasPoints[index].y)
+            close()
+            fillType = PathFillType.EvenOdd
+        }
+        drawPath(outside, scrim.copy(alpha = scrim.alpha * appear))
+
+        drawPath(
+            path = quad,
+            color = outline.copy(alpha = appear),
+            style = Stroke(width = 2.5.dp.toPx(), join = StrokeJoin.Round),
+        )
+
+        // Auto-snap progress: the perimeter lights up proportionally to how steady the frame is.
+        if (stability > 0.02f) {
+            drawPerimeterProgress(canvasPoints, stability, extended.guideLocked.copy(alpha = appear))
+        }
+
+        val handleRadius = 5.dp.toPx()
+        canvasPoints.forEach { point ->
+            drawCircle(Color.Black.copy(alpha = 0.45f * appear), radius = handleRadius * 1.7f, center = point)
+            drawCircle(outline.copy(alpha = appear), radius = handleRadius, center = point)
+        }
+    }
+}
+
+/**
+ * Four corner brackets, drawn inside a centred page-shaped target before a document is found.
+ *
+ * The brackets mark where to aim rather than following the screen edge: an outline pinned to the
+ * corners of the preview would suggest the whole frame is already the page.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGuideBrackets(accent: Color) {
+    val targetWidth = size.width * 0.86f
+    val targetHeight = minOf(size.height * 0.8f, targetWidth / 0.72f)
+    val left = (size.width - targetWidth) / 2f
+    val top = (size.height - targetHeight) / 2f
+    val right = left + targetWidth
+    val bottom = top + targetHeight
+    val arm = minOf(targetWidth, targetHeight) * 0.16f
+    val stroke = 5f
+
+    // Top-left
+    drawLine(accent, Offset(left, top + arm), Offset(left, top), stroke, StrokeCap.Round)
+    drawLine(accent, Offset(left, top), Offset(left + arm, top), stroke, StrokeCap.Round)
+    // Top-right
+    drawLine(accent, Offset(right - arm, top), Offset(right, top), stroke, StrokeCap.Round)
+    drawLine(accent, Offset(right, top), Offset(right, top + arm), stroke, StrokeCap.Round)
+    // Bottom-right
+    drawLine(accent, Offset(right, bottom - arm), Offset(right, bottom), stroke, StrokeCap.Round)
+    drawLine(accent, Offset(right, bottom), Offset(right - arm, bottom), stroke, StrokeCap.Round)
+    // Bottom-left
+    drawLine(accent, Offset(left + arm, bottom), Offset(left, bottom), stroke, StrokeCap.Round)
+    drawLine(accent, Offset(left, bottom), Offset(left, bottom - arm), stroke, StrokeCap.Round)
+}
+
+/** Paints the first [fraction] of the quad's perimeter, walking clockwise from the top-left. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPerimeterProgress(
+    points: List<Offset>,
+    fraction: Float,
+    color: Color,
+) {
+    var remaining = points.indices.sumOf { index ->
+        val from = points[index]
+        val to = points[(index + 1) % points.size]
+        kotlin.math.hypot((to.x - from.x).toDouble(), (to.y - from.y).toDouble())
+    } * fraction.coerceIn(0f, 1f).toDouble()
+    val stroke = 5.dp.toPx()
+    for (index in points.indices) {
+        if (remaining <= 0.0) return
+        val from = points[index]
+        val to = points[(index + 1) % points.size]
+        val length = kotlin.math.hypot((to.x - from.x).toDouble(), (to.y - from.y).toDouble())
+        if (length <= 0.0) continue
+        val share = (remaining / length).coerceAtMost(1.0).toFloat()
+        drawLine(
+            color = color,
+            start = from,
+            end = Offset(from.x + (to.x - from.x) * share, from.y + (to.y - from.y) * share),
+            strokeWidth = stroke,
+            cap = StrokeCap.Round,
+        )
+        remaining -= length
+    }
 }
 
 /**
  * Status line above the capture controls.
  *
- * Doubles as the "in the frame" hint and the auto-capture indicator, so the user never has to look
- * anywhere else to know whether the shot will be taken for them.
+ * Carries the guidance sentence the detector implies - aiming, holding steady, or about to snap -
+ * next to a small progress ring, so the user never has to look anywhere else to know what the app
+ * expects of them or whether the shot will be taken for them.
  */
 @Composable
-fun ScanReadinessPill(
-    ready: Boolean,
-    autoCapture: Boolean,
-    pageCount: Int,
+fun ScanGuidancePill(
+    progress: Float,
+    text: String,
+    locked: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val extended = LocalDocoraExtendedColors.current
     val accent by animateColorAsState(
-        targetValue = if (ready) extended.guideLocked else Color.White,
+        targetValue = if (locked) extended.guideLocked else Color.White,
         animationSpec = tween(LocalDocoraMotion.current.standard),
-        label = "readiness-accent",
+        label = "guidance-accent",
     )
     Surface(
         modifier = modifier,
         shape = CircleShape,
-        color = Color.Black.copy(alpha = 0.42f),
+        color = Color.Black.copy(alpha = 0.46f),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -970,17 +1090,25 @@ fun ScanReadinessPill(
             horizontalArrangement = Arrangement.spacedBy(LocalDocoraSpacing.current.small),
         ) {
             Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(accent),
-            )
+                modifier = Modifier.size(16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(
+                    progress = { progress.coerceIn(0f, 1f) },
+                    modifier = Modifier.size(16.dp),
+                    color = accent,
+                    trackColor = Color.White.copy(alpha = 0.25f),
+                    strokeWidth = 2.dp,
+                )
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .clip(CircleShape)
+                        .background(accent),
+                )
+            }
             Text(
-                text = when {
-                    ready && autoCapture -> stringResource(R.string.scan_ready_hint)
-                    pageCount > 0 -> stringResource(R.string.scan_captured_count, pageCount)
-                    else -> stringResource(R.string.scan_start_hint)
-                },
+                text = text,
                 style = MaterialTheme.typography.labelLarge,
                 color = Color.White,
                 maxLines = 1,

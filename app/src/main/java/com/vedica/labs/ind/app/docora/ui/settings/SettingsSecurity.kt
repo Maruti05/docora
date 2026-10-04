@@ -1,78 +1,101 @@
 package com.vedica.labs.ind.app.docora.ui.settings
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.vedica.labs.ind.app.docora.R
 import com.vedica.labs.ind.app.docora.core.model.AppSettings
 import com.vedica.labs.ind.app.docora.core.model.AutoLockTimeout
-import com.vedica.labs.ind.app.docora.ui.components.DocoraSectionTitle
-import com.vedica.labs.ind.app.docora.ui.components.DocoraSettingsRow
-import com.vedica.labs.ind.app.docora.ui.components.DocoraSwitchRow
 
+/**
+ * Keeping other people out: the lock itself, how fast it re-engages, and the screenshot policy.
+ *
+ * Turning App Lock on always proves identity first (see
+ * [SettingsViewModel.requestAppLockEnabled]); flipping the switch off is instant on purpose, so a
+ * broken sensor can never trap the owner outside their own library.
+ */
 @Composable
 fun SecuritySection(s: AppSettings, vm: SettingsViewModel) {
-    val scheme = MaterialTheme.colorScheme
-    DocoraSectionTitle(stringResource(R.string.settings_section_security))
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        DocoraSwitchRow(
-            icon = Icons.Filled.Lock,
-            iconTint = scheme.primary,
-            iconBackground = scheme.primaryContainer,
+    var timeoutSheet by remember { mutableStateOf(false) }
+    val lockAvailable = vm.canUseBiometrics || s.appLockEnabled
+
+    SettingsSection(title = stringResource(R.string.settings_section_security)) {
+        SettingsSwitchRow(
+            icon = if (s.appLockEnabled) Icons.Filled.Lock else Icons.Filled.Fingerprint,
             title = stringResource(R.string.settings_app_lock),
-            subtitle = stringResource(R.string.settings_app_lock_summary),
+            subtitle = if (lockAvailable) {
+                stringResource(R.string.settings_app_lock_summary)
+            } else {
+                stringResource(R.string.settings_app_lock_unavailable)
+            },
             checked = s.appLockEnabled,
-            onCheckedChange = { vm.setAppLock(it) },
-            enabled = vm.canUseBiometrics || s.appLockEnabled,
+            enabled = lockAvailable,
+            onCheckedChange = { enabled ->
+                if (enabled) vm.requestAppLockEnabled() else vm.setAppLockDisabled()
+            },
         )
-        DocoraSettingsRow(
+        SettingsDivider()
+        SettingsRow(
             icon = Icons.Filled.Timer,
-            iconTint = scheme.tertiary,
-            iconBackground = scheme.tertiaryContainer,
             title = stringResource(R.string.settings_auto_lock),
             subtitle = autoLockLabel(s.autoLockTimeout),
-            onClick = { vm.setAutoLock(nextAutoLock(s.autoLockTimeout)) },
+            enabled = s.appLockEnabled,
+            trailing = {
+                if (s.appLockEnabled) SettingsValueTrailing(autoLockLabel(s.autoLockTimeout))
+            },
+            onClick = if (s.appLockEnabled) {
+                { timeoutSheet = true }
+            } else {
+                null
+            },
         )
-        DocoraSwitchRow(
+        SettingsDivider()
+        SettingsSwitchRow(
             icon = Icons.Filled.VisibilityOff,
-            iconTint = scheme.secondary,
-            iconBackground = scheme.secondaryContainer,
             title = stringResource(R.string.settings_secure_screen),
             subtitle = stringResource(R.string.settings_secure_screen_summary),
             checked = s.secureScreenEnabled,
             onCheckedChange = { vm.setSecureScreen(it) },
         )
-        DocoraSwitchRow(
-            icon = Icons.Filled.Fingerprint,
-            iconTint = scheme.primary,
-            iconBackground = scheme.primaryContainer,
-            title = stringResource(R.string.settings_encrypt_text),
-            subtitle = stringResource(R.string.settings_encrypt_text_summary),
-            checked = s.encryptExtractedText,
-            onCheckedChange = { vm.setEncryptText(it) },
+        SettingsDivider()
+        SettingsRow(
+            icon = Icons.Filled.Lock,
+            title = stringResource(R.string.settings_lock_now),
+            subtitle = stringResource(R.string.settings_lock_now_summary),
+            accent = SettingsAccent.TERTIARY,
+            enabled = s.appLockEnabled,
+            onClick = { vm.lockNow() },
+        )
+    }
+
+    if (timeoutSheet) {
+        SettingsChoiceSheet(
+            title = stringResource(R.string.settings_auto_lock),
+            message = stringResource(R.string.settings_auto_lock_summary),
+            options = AutoLockTimeout.entries.map { timeout ->
+                SettingsChoice(timeout, autoLockLabel(timeout))
+            },
+            selected = s.autoLockTimeout,
+            onSelect = { vm.setAutoLock(it); timeoutSheet = false },
+            onDismiss = { timeoutSheet = false },
         )
     }
 }
 
-fun autoLockLabel(timeout: AutoLockTimeout): String {
-    return when (timeout) {
-        AutoLockTimeout.IMMEDIATELY -> "Immediately"
-        AutoLockTimeout.ONE_MINUTE -> "After 1 minute"
-        AutoLockTimeout.FIVE_MINUTES -> "After 5 minutes"
-        AutoLockTimeout.FIFTEEN_MINUTES -> "After 15 minutes"
-        AutoLockTimeout.NEVER -> "Never"
-    }
+@Composable
+private fun autoLockLabel(timeout: AutoLockTimeout): String = when (timeout) {
+    AutoLockTimeout.IMMEDIATELY -> stringResource(R.string.settings_auto_lock_immediately)
+    AutoLockTimeout.ONE_MINUTE -> stringResource(R.string.settings_auto_lock_1)
+    AutoLockTimeout.FIVE_MINUTES -> stringResource(R.string.settings_auto_lock_5)
+    AutoLockTimeout.FIFTEEN_MINUTES -> stringResource(R.string.settings_auto_lock_15)
+    AutoLockTimeout.NEVER -> stringResource(R.string.settings_auto_lock_never)
 }
 
-fun nextAutoLock(current: AutoLockTimeout): AutoLockTimeout {
-    val all = AutoLockTimeout.entries
-    return all[(all.indexOf(current) + 1) % all.size]
-}
