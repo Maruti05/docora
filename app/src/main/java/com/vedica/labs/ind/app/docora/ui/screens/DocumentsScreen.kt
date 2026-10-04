@@ -8,6 +8,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,21 +31,25 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -52,11 +58,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -76,17 +84,20 @@ import androidx.compose.ui.unit.dp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.vedica.labs.ind.app.docora.R
 import com.vedica.labs.ind.app.docora.core.model.DocumentFilter
+import com.vedica.labs.ind.app.docora.core.model.DocumentCategory
 import com.vedica.labs.ind.app.docora.core.storage.DeviceDocument
 import com.vedica.labs.ind.app.docora.core.util.MimeTypes
 import com.vedica.labs.ind.app.docora.ui.components.DocumentGridTile
 import com.vedica.labs.ind.app.docora.ui.components.DocumentRow
 import com.vedica.labs.ind.app.docora.ui.components.DocumentSectionHeader
 import com.vedica.labs.ind.app.docora.ui.components.DeviceDocumentRow
+import com.vedica.labs.ind.app.docora.ui.home.categoryIcon
+import com.vedica.labs.ind.app.docora.ui.home.categoryNameRes
 import com.vedica.labs.ind.app.docora.ui.components.StoragePermissionCard
 import com.vedica.labs.ind.app.docora.ui.designsystem.DocoraThemeTokens
 import com.vedica.labs.ind.app.docora.ui.designsystem.LocalDocoraExtendedColors
@@ -110,6 +121,7 @@ fun DocumentsScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val snacks = remember { SnackbarHostState() }
+    var tagTarget by remember { mutableStateOf<com.vedica.labs.ind.app.docora.core.model.Document?>(null) }
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
@@ -169,11 +181,22 @@ fun DocumentsScreen(
                 state = state,
                 vm = vm,
                 controller = controller,
+                onTag = { tagTarget = it },
                 onImportDevice = {
                     importLauncher.launch(MimeTypes.importableMimeTypes)
                 },
             )
         }
+    }
+    tagTarget?.let { target ->
+        TagPickerDialog(
+            document = target,
+            onDismiss = { tagTarget = null },
+            onSelect = { category ->
+                vm.setCategory(target, category)
+                tagTarget = null
+            },
+        )
     }
 }
 
@@ -189,7 +212,7 @@ private fun DocumentsTopBar(
         actions = {
             IconButton(onClick = onToggleView) {
                 Icon(
-                    imageVector = if (isGrid) Icons.Filled.ViewList else Icons.Filled.GridView,
+                    imageVector = if (isGrid) Icons.AutoMirrored.Filled.ViewList else Icons.Filled.GridView,
                     contentDescription = stringResource(R.string.action_view_mode),
                 )
             }
@@ -296,6 +319,7 @@ private fun LibraryBody(
     state: DocumentsUiState,
     vm: DocumentsViewModel,
     controller: NavHostController,
+    onTag: (com.vedica.labs.ind.app.docora.core.model.Document) -> Unit,
     onImportDevice: () -> Unit,
 ) {
     val widthClass = rememberDocoraWidthClass()
@@ -326,6 +350,7 @@ private fun LibraryBody(
             modifier = Modifier.fillMaxSize(),
         ) {
             items(state.documents, key = { it.id }) { document ->
+                val menuItems = rowMenu(vm, document, controller, onTag = { onTag(document) })
                 SelectableTile(
                     selected = state.selection.contains(document.id),
                     onLongPress = { vm.enterSelection(document.id) },
@@ -335,6 +360,7 @@ private fun LibraryBody(
                         document = document,
                         onClick = { openDocument(vm, controller, document.id, state.selection.isNotEmpty()) },
                         renderPreview = { uri, target -> vm.renderPreview(uri, target) },
+                        menuItems = menuItems,
                     )
                 }
             }
@@ -364,7 +390,7 @@ private fun LibraryBody(
                         document = document,
                         onClick = { openDocument(vm, controller, document.id, state.selection.isNotEmpty()) },
                         renderPreview = { uri, target -> vm.renderPreview(uri, target) },
-                        menuItems = rowMenu(vm, document, controller),
+                        menuItems = rowMenu(vm, document, controller, onTag = { onTag(document) }),
                     )
                 }
             }
@@ -506,17 +532,28 @@ private fun EmptyLibrary(
     }
 }
 
-/** Overflow menu per row (PRD §27): open, favourite and trash. */
+/**
+ * Overflow menu per row (PRD §27): open, tag, favourite and trash.
+ *
+ * [onTag] is hoisted rather than handled here because the picker is a dialog owned by the screen:
+ * a menu item must not try to open a second popup from inside the menu's own composition.
+ */
 @Composable
 private fun rowMenu(
     vm: DocumentsViewModel,
     document: com.vedica.labs.ind.app.docora.core.model.Document,
     controller: NavHostController,
+    onTag: () -> Unit,
 ): List<com.vedica.labs.ind.app.docora.ui.components.DocumentMenuAction> = listOf(
     com.vedica.labs.ind.app.docora.ui.components.DocumentMenuAction(
         labelRes = R.string.action_details,
         icon = Icons.Filled.Description,
         onClick = { controller.navigate(Screen.detailsRoute(document.id)) },
+    ),
+    com.vedica.labs.ind.app.docora.ui.components.DocumentMenuAction(
+        labelRes = R.string.action_tags,
+        icon = Icons.AutoMirrored.Filled.Label,
+        onClick = onTag,
     ),
     com.vedica.labs.ind.app.docora.ui.components.DocumentMenuAction(
         labelRes = if (document.isFavorite) R.string.action_unfavourite else R.string.action_favourite,
@@ -530,6 +567,85 @@ private fun rowMenu(
         onClick = { vm.moveToTrash(document) },
     ),
 )
+
+/**
+ * Category picker for one document (PRD §19).
+ *
+ * The list mirrors the dashboard categories, so tagging from the browser files a document under
+ * exactly the same buckets the home screen counts - Work, Finance, Personal, Medical, Vehicle and
+ * so on - plus an explicit "no tag" entry that undoes the assignment.
+ */
+@Composable
+private fun TagPickerDialog(
+    document: com.vedica.labs.ind.app.docora.core.model.Document,
+    onDismiss: () -> Unit,
+    onSelect: (DocumentCategory?) -> Unit,
+) {
+    val choices: List<DocumentCategory?> = DocumentCategory.dashboard + DocumentCategory.OTHER
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.tag_document_title)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 340.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                TagOption(
+                    label = stringResource(R.string.tag_document_none),
+                    selected = document.category == null,
+                    icon = Icons.AutoMirrored.Filled.Label,
+                    onClick = { onSelect(null) },
+                )
+                choices.forEach { category ->
+                    if (category == null) return@forEach
+                    TagOption(
+                        label = stringResource(categoryNameRes(category)),
+                        selected = document.category == category,
+                        icon = categoryIcon(category),
+                        onClick = { onSelect(category) },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
+}
+
+@Composable
+private fun TagOption(
+    label: String,
+    selected: Boolean,
+    icon: ImageVector,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(14.dp))
+        Text(
+            label,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        )
+        RadioButton(selected = selected, onClick = onClick)
+    }
+}
 
 /** Discovery section listing files already on the device; tap imports then opens (PRD §43). */
 @Composable

@@ -42,6 +42,19 @@ interface DocumentDao {
     @Query("SELECT * FROM documents WHERE uri = :uri LIMIT 1")
     suspend fun getByUri(uri: String): DocumentEntity?
 
+    /**
+     * Every URI the library already knows about.
+     *
+     * Trashed and archived rows are included on purpose: the device sync uses this set to decide
+     * what is "new", so a file the user deleted inside Docora is never silently re-imported just
+     * because it still exists on the device.
+     */
+    @Query("SELECT uri FROM documents")
+    suspend fun allUris(): List<String>
+
+    @Query("SELECT uri FROM documents")
+    fun observeAllUris(): Flow<List<String>>
+
     @Query("SELECT * FROM documents WHERE id IN (:ids)")
     suspend fun getByIds(ids: List<String>): List<DocumentEntity>
 

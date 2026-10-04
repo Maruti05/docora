@@ -24,10 +24,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.vedica.labs.ind.app.docora.R
-import java.util.Calendar
 
 /**
- * Dashboard header: greeting, settings entry and the search pill (PRD §24, §25).
+ * Dashboard header: the app title, settings entry and the search pill (PRD §24, §25).
+ *
+ * A time-based greeting used to sit above the title here. It was removed on purpose: the value was
+ * read once at composition time, so a session left open across a boundary kept showing a stale
+ * greeting, and it told the user nothing actionable about their library.
  *
  * The pill opens the global search screen so search behaviour is identical everywhere
  * (PRD §62: consistency) instead of keeping a second, half-featured query state here.
@@ -38,19 +41,9 @@ fun HomeHeader(
     onSearchOpen: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val greetingRes = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
-        in 5..11 -> R.string.home_greeting_morning
-        in 12..16 -> R.string.home_greeting_afternoon
-        else -> R.string.home_greeting_evening
-    }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(
-                    stringResource(greetingRes),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = scheme.primary,
-                )
                 Text("Docora", style = MaterialTheme.typography.headlineMedium)
             }
             Box(

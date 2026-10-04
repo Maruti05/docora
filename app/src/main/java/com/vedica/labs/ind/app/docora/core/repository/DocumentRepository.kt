@@ -33,6 +33,17 @@ interface DocumentRepository {
 
     suspend fun getDocumentByUri(uri: String): Document?
 
+    /**
+     * Every URI the library already holds, including trashed rows.
+     *
+     * Used by the device sync to work out which files on the device are genuinely new, so an
+     * automatic scan can never resurrect something the user already deleted inside Docora.
+     */
+    suspend fun knownUris(): Set<String>
+
+    /** Live view of [knownUris]; the device inbox hides files that are already imported. */
+    fun observeKnownUris(): Flow<Set<String>>
+
     suspend fun getDocuments(ids: List<String>): List<Document>
 
     /**

@@ -47,6 +47,7 @@ import javax.inject.Singleton
  *  * removing sandbox copies when a document Docora created is deleted permanently, so the app
  *    never leaks its own files.
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @Singleton
 class DocumentRepositoryImpl @Inject constructor(
     private val documentDao: DocumentDao,
@@ -70,6 +71,11 @@ class DocumentRepositoryImpl @Inject constructor(
     override suspend fun getDocumentByUri(uri: String): Document? = io {
         documentDao.getByUri(uri)?.toDomain()
     }
+
+    override suspend fun knownUris(): Set<String> = io { documentDao.allUris().toSet() }
+
+    override fun observeKnownUris(): Flow<Set<String>> =
+        documentDao.observeAllUris().mapLatest { uris -> uris.toSet() }
 
     override suspend fun getDocuments(ids: List<String>): List<Document> = io {
         if (ids.isEmpty()) emptyList() else documentDao.getByIds(ids).toDomain()

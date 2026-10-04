@@ -43,7 +43,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.CameraAlt
@@ -858,7 +858,7 @@ fun ScanTopBar(
             contentDescription = stringResource(R.string.action_back),
             onClick = onBack,
         ) {
-            Icon(Icons.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(20.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.weight(1f))
         ScanGlassButton(

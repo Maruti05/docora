@@ -15,9 +15,6 @@
     <string name="nav_settings">Settings</string>
 
     <!-- Home -->
-    <string name="home_greeting_morning">Good morning</string>
-    <string name="home_greeting_afternoon">Good afternoon</string>
-    <string name="home_greeting_evening">Good evening</string>
     <string name="home_search_hint">Search documents…</string>
     <string name="home_recent">Recent</string>
     <string name="home_collections">Collections</string>
@@ -83,6 +80,7 @@
     <string name="action_share">Share</string>
     <string name="action_print">Print</string>
     <string name="action_details">Details</string>
+    <string name="action_more">More actions</string>
     <string name="action_select_all">Select all</string>
     <string name="action_clear_selection">Clear selection</string>
     <string name="action_cancel">Cancel</string>
@@ -156,7 +154,11 @@
     <string name="documents_filter_favourites">Favourites</string>
     <string name="documents_filter_ocr_pending">Needs text recognition</string>
     <string name="documents_on_device">On this device</string>
-    <string name="documents_on_device_hint">Tap a file to add it to your Docora library</string>
+    <string name="documents_on_device_hint">New files Docora found on this phone. Tap one to add it to your library.</string>
+    <string name="documents_scan_device">Scan device</string>
+    <string name="documents_scan_device_summary">Look for documents on this phone and add them to your library</string>
+    <string name="documents_scanning">Scanning this device…</string>
+    <string name="documents_load_more">Loading more…</string>
     <string name="documents_selected">%1$d selected</string>
     <string name="documents_folders">Folders</string>
     <string name="documents_root">All documents</string>
@@ -282,6 +284,9 @@
     <string name="tags_auto_badge">Auto</string>
     <string name="tags_delete_confirm">Delete this tag? It will be removed from all documents.</string>
     <string name="tags_empty">No tags yet. Create one to group documents across folders.</string>
+    <string name="tag_document_title">Tag this document</string>
+    <string name="tag_document_none">No tag</string>
+    <string name="tag_document_current">Current</string>
     <string name="category_work">Work</string>
     <string name="category_finance">Finance</string>
     <string name="category_personal">Personal</string>
@@ -342,6 +347,9 @@
     <string name="snack_tags_updated">Tags updated</string>
     <string name="snack_imported">Imported %1$d documents</string>
     <string name="snack_import_failed">Could not import %1$d files</string>
+    <string name="snack_scan_imported">Added %1$d documents from this device</string>
+    <string name="snack_category_set">Tagged as %1$s</string>
+    <string name="snack_category_cleared">Tag removed</string>
     <string name="snack_indexing_queued">Indexing started</string>
     <string name="snack_processing_done">Processing finished</string>
     <string name="snack_nothing_selected">Select at least one document</string>

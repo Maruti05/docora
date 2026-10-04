@@ -18,16 +18,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -57,7 +57,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.vedica.labs.ind.app.docora.R
@@ -102,7 +102,7 @@ fun DetailsScreen(
                 title = { Text(stringResource(R.string.details_title)) },
                 navigationIcon = {
                     IconButton(onClick = { controller.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -268,7 +268,7 @@ private fun TagsRow(tags: List<com.vedica.labs.ind.app.docora.core.model.Tag>) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Icon(
-            Icons.Filled.Label,
+            Icons.AutoMirrored.Filled.Label,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(18.dp),
@@ -299,7 +299,7 @@ private fun ActionsCard(
             ActionRow(Icons.Filled.Share, stringResource(R.string.action_share), onShare)
             ActionRow(Icons.Filled.Print, stringResource(R.string.action_print), onPrint)
             if (document.requiresExternalApp) {
-                ActionRow(Icons.Filled.OpenInNew, stringResource(R.string.action_open_with), onOpenWith)
+                ActionRow(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.action_open_with), onOpenWith)
             }
             ActionRow(
                 Icons.Filled.Delete,

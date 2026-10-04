@@ -23,6 +23,14 @@ data class AppSettings(
     val indexOcrText: Boolean = true,
     val indexDocumentText: Boolean = true,
     val onboardingCompleted: Boolean = false,
+    /**
+     * True once Docora has asked for the media/storage permission needed to scan the device.
+     *
+     * Automatic scanning is the default behaviour, so the prompt fires once on first launch;
+     * afterwards the permission is re-checked silently and the user keeps the explicit card in
+     * the documents browser if they declined.
+     */
+    val deviceScanAsked: Boolean = false,
     /** Most recent search terms, newest first; bounded by [SearchRepository.MAX_RECENT_SEARCHES]. */
     val recentSearches: List<String> = emptyList(),
 ) {

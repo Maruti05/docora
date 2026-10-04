@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 data class HomeUiState(
-    val greetingKey: String = "morning",
     val stats: DashboardStats = DashboardStats.Empty,
     val recentDocuments: List<Document> = emptyList(),
     val indexing: IndexingProgress = IndexingProgress(0, 0),

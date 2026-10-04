@@ -7,7 +7,7 @@ import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
@@ -34,7 +34,7 @@ fun LibrarySection(s: AppSettings, vm: SettingsViewModel) {
             onClick = { vm.setViewMode(nextViewMode(s.defaultViewMode)) },
         )
         DocoraSettingsRow(
-            icon = Icons.Filled.Sort,
+            icon = Icons.AutoMirrored.Filled.Sort,
             iconTint = scheme.tertiary,
             iconBackground = scheme.tertiaryContainer,
             title = stringResource(R.string.action_sort),

@@ -31,6 +31,7 @@ import javax.inject.Singleton
  * Write path: [indexDocument] always replaces the row (delete + insert in one transaction), so the
  * index cannot accumulate duplicates for a document that was re-imported or renamed.
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @Singleton
 class SearchRepositoryImpl @Inject constructor(
     private val searchDao: SearchDao,

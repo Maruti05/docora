@@ -49,9 +49,9 @@ data class AppSettingsDto(
     val indexOcrText: Boolean = true,
     val indexDocumentText: Boolean = true,
     val onboardingCompleted: Boolean = false,
+    val deviceScanAsked: Boolean = false,
     val recentSearches: List<String> = emptyList(),
 )
-
 fun AppSettingsDto.toDomain(): AppSettings = AppSettings(
     themeMode = runCatching { ThemeMode.valueOf(themeMode) }.getOrDefault(ThemeMode.SYSTEM),
     useDynamicColor = useDynamicColor,
@@ -73,6 +73,7 @@ fun AppSettingsDto.toDomain(): AppSettings = AppSettings(
     indexOcrText = indexOcrText,
     indexDocumentText = indexDocumentText,
     onboardingCompleted = onboardingCompleted,
+    deviceScanAsked = deviceScanAsked,
     recentSearches = recentSearches,
 )
 
@@ -97,6 +98,7 @@ fun AppSettings.toDto(): AppSettingsDto = AppSettingsDto(
     indexOcrText = indexOcrText,
     indexDocumentText = indexDocumentText,
     onboardingCompleted = onboardingCompleted,
+    deviceScanAsked = deviceScanAsked,
     recentSearches = recentSearches,
 )
 

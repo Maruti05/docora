@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -20,8 +21,12 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.vedica.labs.ind.app.docora.core.model.DocumentType
@@ -200,40 +206,67 @@ fun DocumentRow(
                 Spacer(Modifier.width(4.dp))
             }
             if (menuItems.isNotEmpty()) {
-                var menuOpen by remember { mutableStateOf(false) }
-                androidx.compose.material3.IconButton(onClick = { menuOpen = true }) {
-                    Icon(
-                        imageVector = Icons.Filled.MoreVert,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                androidx.compose.material3.DropdownMenu(
-                    expanded = menuOpen,
-                    onDismissRequest = { menuOpen = false },
-                ) {
-                    menuItems.forEach { action ->
-                        androidx.compose.material3.DropdownMenuItem(
-                            text = {
-                                Text(
-                                    androidx.compose.ui.res.stringResource(action.labelRes),
-                                    color = action.tint ?: MaterialTheme.colorScheme.onSurface,
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    action.icon,
-                                    contentDescription = null,
-                                    tint = action.tint ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            },
-                            onClick = {
-                                menuOpen = false
-                                action.onClick()
-                            },
+                DocumentOverflowMenu(actions = menuItems)
+            }
+        }
+    }
+}
+
+/**
+ * The three-dot overflow menu of a document.
+ *
+ * The menu is anchored by wrapping the trigger and the popup in the same [Box]: `DropdownMenu`
+ * positions itself against its parent layout node, so as a bare sibling inside the full-width
+ * row it used to open at the left edge of the card instead of under the icon. Keeping one child
+ * around the trigger makes the popup line up with the dots it was launched from.
+ */
+@Composable
+private fun DocumentOverflowMenu(
+    actions: List<DocumentMenuAction>,
+    modifier: Modifier = Modifier,
+    iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    containerColor: Color? = null,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Box(modifier) {
+        val button: @Composable () -> Unit = {
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(
+                    imageVector = Icons.Filled.MoreVert,
+                    contentDescription = stringResource(com.vedica.labs.ind.app.docora.R.string.action_more),
+                    tint = iconTint,
+                )
+            }
+        }
+        if (containerColor != null) {
+            Surface(shape = CircleShape, color = containerColor) { button() }
+        } else {
+            button()
+        }
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+        ) {
+            actions.forEach { action ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            stringResource(action.labelRes),
+                            color = action.tint ?: MaterialTheme.colorScheme.onSurface,
                         )
-                    }
-                }
+                    },
+                    leadingIcon = {
+                        Icon(
+                            action.icon,
+                            contentDescription = null,
+                            tint = action.tint ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    onClick = {
+                        menuOpen = false
+                        action.onClick()
+                    },
+                )
             }
         }
     }
@@ -248,6 +281,7 @@ fun DocumentGridTile(
     renderPreview: suspend (String, Int) -> Bitmap?,
     modifier: Modifier = Modifier,
     thumbnailHeight: Dp = 148.dp,
+    menuItems: List<DocumentMenuAction> = emptyList(),
     onLongPress: (() -> Unit)? = null,
 ) {
     androidx.compose.material3.Card(
@@ -264,13 +298,25 @@ fun DocumentGridTile(
         ),
     ) {
         Column {
-            DocumentThumbnail(
-                uri = document.uri,
-                type = document.type,
-                renderPreview = renderPreview,
-                targetPx = 512,
-                modifier = Modifier.fillMaxWidth().height(thumbnailHeight),
-            )
+            Box(Modifier.fillMaxWidth().height(thumbnailHeight)) {
+                DocumentThumbnail(
+                    uri = document.uri,
+                    type = document.type,
+                    renderPreview = renderPreview,
+                    targetPx = 512,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (menuItems.isNotEmpty()) {
+                    // Same actions as the list row, floated over the thumbnail so grid mode is
+                    // not a dead end for tagging, favouriting or trashing a document.
+                    DocumentOverflowMenu(
+                        actions = menuItems,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(2.dp),
+                        iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f),
+                    )
+                }
+            }
             Column(Modifier.padding(12.dp)) {
                 Text(
                     document.displayName,
