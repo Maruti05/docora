@@ -56,6 +56,7 @@ interface DocumentRepository {
         sort: DocumentSort = DocumentSort.Default,
         limit: Int = DEFAULT_PAGE_SIZE,
         searchQuery: String? = null,
+        category: DocumentCategory? = null,
     ): Flow<List<Document>>
 
     fun observeFolder(
@@ -98,6 +99,14 @@ interface DocumentRepository {
     suspend fun restore(ids: List<String>)
 
     suspend fun deletePermanently(ids: List<String>)
+
+    /**
+     * Removes pictures that an earlier automatic device scan imported from MediaStore.
+     *
+     * Scans and pictures the user captured inside Docora are never touched; this only clears
+     * library rows whose source is the device and whose authority is the media provider.
+     */
+    suspend fun removeImportedDeviceImages(): Int
 
     suspend fun emptyTrash()
 

@@ -40,6 +40,7 @@ import androidx.navigation.NavHostController
 import com.vedica.labs.ind.app.docora.R
 import com.vedica.labs.ind.app.docora.core.backup.BackupFile
 import com.vedica.labs.ind.app.docora.core.util.DateFormatter
+import com.vedica.labs.ind.app.docora.ui.components.LocalBottomBarInset
 import com.vedica.labs.ind.app.docora.ui.designsystem.DocoraContentColumn
 import com.vedica.labs.ind.app.docora.ui.designsystem.DocoraThemeTokens
 import com.vedica.labs.ind.app.docora.ui.designsystem.LocalDocoraSpacing
@@ -65,6 +66,7 @@ fun SettingsScreen(controller: NavHostController, vm: SettingsViewModel = hiltVi
     val snacks = remember { SnackbarHostState() }
     val motion = DocoraThemeTokens.motion
     val spacing = LocalDocoraSpacing.current
+    val bottomInset = maxOf(spacing.bottomScrollInset, LocalBottomBarInset.current)
     val snackMessage = message?.let { resolveMessage(it) }
 
     // The auth prompt wraps the system dialog, so it needs the localised strings resolved here.
@@ -134,6 +136,7 @@ fun SettingsScreen(controller: NavHostController, vm: SettingsViewModel = hiltVi
                         }
                         AppearanceSection(s = settings, vm = vm)
                         LibrarySection(s = settings, vm = vm)
+                        SearchSection(s = settings, busy = busy, vm = vm)
                         SecuritySection(s = settings, vm = vm)
                         ScannerSection(s = settings, vm = vm)
                         StorageSection(s = settings, cacheBytes = cacheBytes, busy = busy, vm = vm)
@@ -148,7 +151,7 @@ fun SettingsScreen(controller: NavHostController, vm: SettingsViewModel = hiltVi
                             vm = vm,
                         )
                         AboutSection()
-                        Spacer(Modifier.height(spacing.bottomScrollInset))
+                        Spacer(Modifier.height(bottomInset))
                     }
                 }
             }

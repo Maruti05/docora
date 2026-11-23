@@ -2,6 +2,7 @@ package com.vedica.labs.ind.app.docora.core.database.query
 
 import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteQuery
+import com.vedica.labs.ind.app.docora.core.model.DocumentCategory
 import com.vedica.labs.ind.app.docora.core.model.DocumentFilter
 import com.vedica.labs.ind.app.docora.core.model.DocumentSort
 import com.vedica.labs.ind.app.docora.core.model.DocumentType
@@ -51,10 +52,12 @@ object DocumentQueryBuilder {
         limit: Int,
         offset: Int = 0,
         searchQuery: String? = null,
+        category: DocumentCategory? = null,
     ): SupportSQLiteQuery {
         val builder = WhereBuilder()
         builder.addCollection(collection)
         builder.addFilter(filter)
+        category?.let { builder.addCategory(it) }
         searchQuery?.takeIf { it.isNotBlank() }?.let { builder.addNameMatch(it) }
         return builder.toSortedQuery(orderByClause(sort), limit, offset)
     }
@@ -140,6 +143,11 @@ object DocumentQueryBuilder {
                     DocumentType.IMAGE.name,
                 )
             }
+        }
+
+        /** Restricts the current collection to one smart category (HOME tab deep-link). */
+        fun addCategory(category: DocumentCategory) {
+            add("category = ?", category.name)
         }
 
         fun addNameMatch(query: String) {

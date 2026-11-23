@@ -9,7 +9,7 @@
 # Build toolchain
 # AGP 9.x is required by the current Hilt Gradle plugin (>= 9.0.0) and by KSP2, and it is
 # the current stable line (9.4.x). Gradle 9.6.0 is AGP 9.4's minimum.
-agp = "9.4.1"
+agp = "9.5.2"
 kotlin = "2.4.10"
 ksp = "2.3.12"
 

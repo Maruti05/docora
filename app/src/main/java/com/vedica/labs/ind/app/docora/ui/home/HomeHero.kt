@@ -1,152 +1,104 @@
 package com.vedica.labs.ind.app.docora.ui.home
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DocumentScanner
-import androidx.compose.material.icons.filled.UploadFile
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.vedica.labs.ind.app.docora.R
 import com.vedica.labs.ind.app.docora.core.util.FileSizeFormatter
-import com.vedica.labs.ind.app.docora.ui.designsystem.DocoraThemeTokens
-import com.vedica.labs.ind.app.docora.ui.designsystem.LocalDocoraSpacing
 
 /**
- * The dashboard hero.
+ * A quiet overview of the library: three numbers, no decoration.
  *
- * It carries the two numbers a user actually wants at a glance - how many documents and how much
- * space they take - plus the two actions that create documents, so the most common job (add
- * something, or see what you have) is reachable without scrolling. The gradient and the glow come
- * from the theme's gradient tokens rather than raw colours, so the card survives a dynamic-colour
- * palette swap instead of clashing with it.
- *
- * Content colours are derived from `onPrimary`, which is by construction the readable foreground for
- * the primary-toned gradient in both light and dark themes.
+ * This replaces the row of tinted stat chips. Colour was doing no work there - the numbers are
+ * the information - so the card is a single surface divided by hairlines, with values in the
+ * foreground colour and labels in the muted one.
  */
 @Composable
-fun HomeHero(
+fun HomeOverviewCard(
     total: Int,
+    favourites: Int,
     bytes: Long,
-    onScan: () -> Unit,
-    onImport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val spacing = LocalDocoraSpacing.current
-    val gradients = DocoraThemeTokens.gradients
-    val onHero = scheme.onPrimary
-    val isEmpty = total == 0
-
-    Card(
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+    Surface(
         modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = scheme.surfaceContainerLow,
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(gradients.hero)
-                .background(gradients.heroGlow)
-                .padding(spacing.extraLarge),
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(spacing.extraSmall)) {
-                Text(
-                    text = stringResource(R.string.home_hero_greeting),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = onHero.copy(alpha = 0.85f),
-                )
-                Text(
-                    text = if (isEmpty) {
-                        stringResource(R.string.empty_library_title)
-                    } else {
-                        pluralStringResource(R.plurals.plural_documents, total, total)
-                    },
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = onHero,
-                )
-                Text(
-                    text = if (isEmpty) {
-                        stringResource(R.string.empty_library_message)
-                    } else {
-                        stringResource(R.string.home_hero_storage, FileSizeFormatter.format(bytes))
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = onHero.copy(alpha = 0.85f),
-                )
-                Spacer(Modifier.size(spacing.medium))
-                Row(horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
-                    HeroAction(
-                        label = stringResource(R.string.action_scan_document),
-                        icon = Icons.Filled.DocumentScanner,
-                        filled = true,
-                        onClick = onScan,
-                    )
-                    HeroAction(
-                        label = stringResource(R.string.action_import_files),
-                        icon = Icons.Filled.UploadFile,
-                        filled = false,
-                        onClick = onImport,
-                    )
-                }
-            }
+            OverviewStat(
+                value = total.toString(),
+                label = stringResource(R.string.home_stat_documents),
+                modifier = Modifier.weight(1f),
+            )
+            OverviewDivider()
+            OverviewStat(
+                value = favourites.toString(),
+                label = stringResource(R.string.home_stat_favourites),
+                modifier = Modifier.weight(1f),
+            )
+            OverviewDivider()
+            OverviewStat(
+                value = FileSizeFormatter.format(bytes),
+                label = stringResource(R.string.collection_storage),
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
 
-/** A pill action laid over the hero gradient; [filled] marks the single primary action. */
 @Composable
-private fun HeroAction(
+private fun OverviewStat(
+    value: String,
     label: String,
-    icon: ImageVector,
-    filled: Boolean,
-    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val spacing = LocalDocoraSpacing.current
-    val content = if (filled) scheme.primary else scheme.onPrimary
-    val container = if (filled) scheme.onPrimary else scheme.onPrimary.copy(alpha = 0.18f)
-    Card(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = container, contentColor = content),
+    Column(
+        modifier = modifier.padding(horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
-            modifier = Modifier.padding(
-                horizontal = spacing.medium + spacing.extraSmall,
-                vertical = spacing.small + spacing.extraSmall,
-            ),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(imageVector = icon, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(spacing.small))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = content,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleLarge,
+            color = scheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
+}
+
+@Composable
+private fun OverviewDivider() {
+    VerticalDivider(
+        modifier = Modifier.height(30.dp),
+        thickness = 1.dp,
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+    )
 }

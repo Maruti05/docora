@@ -87,6 +87,7 @@ class DocumentRepositoryImpl @Inject constructor(
         sort: DocumentSort,
         limit: Int,
         searchQuery: String?,
+        category: DocumentCategory?,
     ): Flow<List<Document>> =
         documentDao.observeRawDocuments(
             DocumentQueryBuilder.collectionQuery(
@@ -95,6 +96,7 @@ class DocumentRepositoryImpl @Inject constructor(
                 sort = defaultSortFor(collection, sort),
                 limit = limit,
                 searchQuery = searchQuery,
+                category = category,
             ),
         ).mapLatest { entities -> entities.toDomain() }
 
@@ -265,6 +267,22 @@ class DocumentRepositoryImpl @Inject constructor(
             searchDao.deleteIndexRow(entity.id)
             thumbnailStore.delete(entity.id)
             deleteSandboxCopy(entity)
+        }
+    }
+
+    override suspend fun removeImportedDeviceImages(): Int = io {
+        val ids = documentDao.importedDeviceImageIds()
+        if (ids.isEmpty()) {
+            0
+        } else {
+            val entities = documentDao.getByIds(ids)
+            documentDao.deleteByIds(ids)
+            entities.forEach { entity ->
+                searchDao.deleteIndexRow(entity.id)
+                thumbnailStore.delete(entity.id)
+                deleteSandboxCopy(entity)
+            }
+            ids.size
         }
     }
 

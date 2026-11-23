@@ -10,6 +10,7 @@
     <!-- Navigation -->
     <string name="nav_home">Home</string>
     <string name="nav_documents">Documents</string>
+    <string name="nav_tools">Tools</string>
     <string name="nav_scan">Scan</string>
     <string name="nav_search">Search</string>
     <string name="nav_settings">Settings</string>
@@ -29,7 +30,6 @@
     <string name="search_indexing_pending">Some documents are still being indexed — results may grow.</string>
     <string name="search_snippet_from_text">Matched in document text</string>
     <string name="home_see_all">See all</string>
-    <string name="home_hero_greeting">Your library</string>
     <string name="home_hero_storage">%1$s used on this device</string>
     <string name="processing_title">Processing documents</string>
     <string name="processing_progress">%1$d of %2$d</string>
@@ -39,7 +39,7 @@
 
     <!-- Empty and error states -->
     <string name="empty_library_title">No documents yet</string>
-    <string name="empty_library_message">Scan your first document or import files from your device.</string>
+    <string name="empty_library_message">Scan a document, or allow file access so the documents already on this device appear automatically.</string>
     <string name="empty_folder_title">This folder is empty</string>
     <string name="empty_folder_message">Move documents here or import new files into this folder.</string>
     <string name="empty_search_title">No matches</string>
@@ -48,6 +48,8 @@
     <string name="empty_trash_message">Documents you delete are kept here until you empty the trash.</string>
     <string name="empty_favorites_title">No favourites yet</string>
     <string name="empty_favorites_message">Star the documents you open most often to find them instantly.</string>
+    <string name="empty_category_title">Nothing in %1$s yet</string>
+    <string name="empty_category_message">No documents are tagged as %1$s yet. Add a tag to a document or choose another category.</string>
     <string name="empty_duplicates_title">No duplicates found</string>
     <string name="empty_duplicates_message">Docora compares file size and content checksums to spot identical copies.</string>
     <string name="error_generic_title">Something went wrong</string>
@@ -201,6 +203,64 @@
     <string name="viewer_zoom_reset">Reset zoom</string>
     <string name="viewer_loading">Opening document…</string>
     <string name="viewer_image_of">Image %1$d of %2$d</string>
+    <string name="viewer_bookmark">Bookmark this page</string>
+    <string name="viewer_night_mode_off">Turn off colour inversion</string>
+    <string name="viewer_night_mode_active">Inverted colours are on</string>
+    <string name="viewer_search_hint">Search this document</string>
+    <string name="viewer_search_page_count">%1$d pages contain this text</string>
+    <string name="viewer_search_occurrences">%1$d matches</string>
+    <string name="viewer_page_number">Page %1$d</string>
+    <string name="viewer_edit_page">Edit this page</string>
+    <string name="viewer_password_title">Password required</string>
+    <string name="viewer_password_body">This PDF is encrypted. Enter its password to open it.</string>
+    <string name="viewer_password_hint">PDF password</string>
+    <string name="viewer_password_unlock">Unlock</string>
+    <string name="viewer_password_incorrect">Incorrect password. Try again.</string>
+    <string name="viewer_password_failed">This PDF could not be unlocked.</string>
+    <string name="viewer_password_show">Show password</string>
+    <string name="viewer_password_hide">Hide password</string>
+    <string name="viewer_password_locked_title">Protected PDF</string>
+
+    <!-- PDF page editor -->
+    <string name="pdf_editor_page">Page %1$d of %2$d</string>
+    <string name="pdf_editor_clip_label">PDF text</string>
+    <string name="pdf_editor_text_copied">Text copied</string>
+    <string name="pdf_editor_no_marks">Add a highlight, note or drawing first.</string>
+    <string name="pdf_editor_copy">Copy</string>
+    <string name="pdf_editor_select_hint">Tap or drag across text to select it.</string>
+    <string name="pdf_editor_no_text">No selectable text on this page. Use Highlight or Draw instead.</string>
+    <string name="pdf_editor_highlight_selection">Highlight</string>
+    <string name="pdf_editor_underline_selection">Underline</string>
+    <string name="pdf_editor_clear_selection">Clear selection</string>
+    <string name="pdf_editor_previous_page">Previous page</string>
+    <string name="pdf_editor_next_page">Next page</string>
+    <string name="pdf_editor_clear_page">Clear page marks</string>
+    <string name="pdf_tool_select">Select</string>
+    <string name="pdf_tool_highlight">Highlight</string>
+    <string name="pdf_tool_underline">Underline</string>
+    <string name="pdf_tool_note">Note</string>
+    <string name="pdf_tool_draw">Draw</string>
+    <string name="pdf_editor_thin">Thin</string>
+    <string name="pdf_editor_medium">Medium</string>
+    <string name="pdf_editor_thick">Thick</string>
+    <string name="pdf_editor_color">Colour</string>
+    <string name="pdf_editor_brush_size">Brush size</string>
+    <string name="pdf_editor_done">Done</string>
+    <string name="pdf_editor_selection_hint">Copy, highlight or underline the selection above.</string>
+    <string name="pdf_editor_hint_highlight">Drag across the page to highlight an area.</string>
+    <string name="pdf_editor_hint_underline">Drag across the page to underline.</string>
+    <string name="pdf_editor_hint_note">Tap the page to place a note.</string>
+    <string name="pdf_editor_hint_draw">Draw freely on the page.</string>
+    <string name="pdf_color_yellow">Yellow</string>
+    <string name="pdf_color_green">Green</string>
+    <string name="pdf_color_blue">Blue</string>
+    <string name="pdf_color_orange">Orange</string>
+    <string name="pdf_color_red">Red</string>
+    <string name="pdf_color_charcoal">Charcoal</string>
+    <string name="pdf_note_title">Add note</string>
+    <string name="pdf_note_hint">Note</string>
+    <string name="pdf_note_add">Add</string>
+    <string name="action_redo">Redo</string>
 
     <!-- Text recognition (OCR) -->
     <string name="ocr_status_not_processed">Not processed</string>
@@ -263,6 +323,43 @@
     <string name="toolkit_output_name">Output file name</string>
     <string name="toolkit_result_saved">Saved %1$s</string>
     <string name="toolkit_compression_original">Original quality</string>
+    <string name="toolkit_section_pages">Page operations</string>
+    <string name="toolkit_section_convert">Create and optimise</string>
+    <string name="toolkit_organize_summary">Reorder, rotate, duplicate or delete pages</string>
+    <string name="toolkit_organize_hint">Tap a page to rotate it, or use the arrows to change its place.</string>
+    <string name="toolkit_extract_summary">Keep only the pages you choose</string>
+    <string name="toolkit_extract_hint">Enter the pages to extract, for example 1-3, 5.</string>
+    <string name="toolkit_split_summary">Break the PDF into several files</string>
+    <string name="toolkit_split_hint">Enter one or more page ranges; each becomes a separate PDF.</string>
+    <string name="toolkit_merge_summary">Combine PDFs in a chosen order</string>
+    <string name="toolkit_merge_hint">Select at least two PDFs. The number shows the merge order.</string>
+    <string name="toolkit_merge_empty">No other PDFs are in your library yet.</string>
+    <string name="toolkit_merge_needs_two">Select at least two PDFs to merge.</string>
+    <string name="toolkit_compress_summary">Reduce the file size</string>
+    <string name="toolkit_compress_hint">Images are recompressed; the text layer is untouched.</string>
+    <string name="toolkit_metadata_summary">Edit title, author, subject and keywords</string>
+    <string name="toolkit_images_summary">Turn photos into a PDF</string>
+    <string name="toolkit_images_hint">Pick the images, then choose page size and quality.</string>
+    <string name="toolkit_pages_and_size">%1$s · %2$s</string>
+    <string name="toolkit_keep_one_page">Keep at least one page.</string>
+    <string name="toolkit_pick_images">Pick at least one image.</string>
+    <string name="toolkit_result_multiple">Saved %1$d PDFs</string>
+    <string name="toolkit_rotate_left">Rotate left</string>
+    <string name="toolkit_rotate_right">Rotate right</string>
+    <string name="toolkit_metadata_title">Title</string>
+    <string name="toolkit_metadata_author">Author</string>
+    <string name="toolkit_metadata_subject">Subject</string>
+    <string name="toolkit_metadata_keywords">Keywords</string>
+    <string name="toolkit_add_images">Add images</string>
+    <string name="toolkit_no_images">No images selected</string>
+
+    <!-- Tools tab -->
+    <string name="tools_hero_title">PDF toolkit</string>
+    <string name="tools_hero_body">Choose a PDF below to reorder, split, merge, compress or edit its metadata.</string>
+    <string name="tools_section_documents">Your PDFs</string>
+    <string name="tools_section_operations">Operations</string>
+    <string name="tools_empty_title">No PDFs yet</string>
+    <string name="tools_empty_body">Import or scan a document and its PDF tools will appear here.</string>
 
     <!-- Details -->
     <string name="details_title">Details</string>
@@ -279,6 +376,22 @@
     <string name="details_last_opened">Last opened</string>
     <string name="details_location_root">Docora library</string>
     <string name="details_text_source">Text source</string>
+    <string name="details_open">Open document</string>
+    <string name="details_information">Information</string>
+    <string name="details_category_tags">Category &amp; tags</string>
+    <string name="details_more_actions">More actions</string>
+    <string name="details_source">Added via</string>
+    <string name="details_source_imported">Imported from device</string>
+    <string name="details_source_scanned">Scanned with Docora</string>
+    <string name="details_source_created">Created in Docora</string>
+    <string name="details_source_shared">Shared into Docora</string>
+    <string name="details_protection">Protection</string>
+    <string name="details_protected">Password protected</string>
+    <string name="details_text_embedded">Embedded text</string>
+    <string name="details_text_recognised">Recognised by OCR</string>
+    <string name="details_pdf_tools_summary">Reorder, merge, split, compress and edit metadata</string>
+    <string name="details_open_with_summary">This format needs another app to open</string>
+    <string name="details_delete_summary">Move this document to Trash</string>
 
     <!-- Tags and categories -->
     <string name="tags_title">Tags</string>
@@ -425,6 +538,19 @@
     <string name="toolkit_page_size_letter">Letter</string>
     <string name="toolkit_page_size_fit">Fit to image</string>
     <string name="toolkit_select_pdfs">Select the PDFs to merge in order</string>
+    <string name="toolkit_split_by_ranges">Page ranges</string>
+    <string name="toolkit_split_every">Every N pages</string>
+    <string name="toolkit_merge_total">%1$d PDFs · %2$d pages</string>
+    <string name="toolkit_rotate_all_left">Rotate all left</string>
+    <string name="toolkit_rotate_all_right">Rotate all right</string>
+    <string name="toolkit_current_size">Current size: %1$s</string>
+    <string name="toolkit_export_text">Extract text</string>
+    <string name="toolkit_export_text_summary">Copy or share the searchable text layer</string>
+    <string name="toolkit_export_text_hint">Every page in reading order, ready to copy or share.</string>
+    <string name="toolkit_export_text_empty">This PDF has no extractable text. Use text recognition for scanned pages.</string>
+    <string name="toolkit_add_from_device">Add PDFs from this device</string>
+    <string name="toolkit_imported_pdfs">Added %1$d PDFs</string>
+    <string name="toolkit_import_failed">No PDFs were added</string>
 
     <string name="search_filter_last_30_days">Last 30 days</string>
     <string name="search_filter_this_year">This year</string>
@@ -473,6 +599,9 @@
     <string name="settings_thumbnail_cache_limit">Thumbnail cache limit</string>
     <string name="settings_cache_clear_summary">Thumbnails are regenerated automatically when they are next needed.</string>
     <string name="settings_section_search">Search</string>
+    <string name="settings_section_search_summary">Control what full-text search can find.</string>
+    <string name="settings_index_document_text_summary">Makes text inside PDFs and text files searchable.</string>
+    <string name="settings_index_ocr_summary">Makes text recognised from scans and images searchable.</string>
     <string name="settings_index_ocr">Index recognised text</string>
     <string name="settings_index_document_text">Index text from PDF and text files</string>
     <string name="settings_reindex">Rebuild search index</string>
@@ -612,6 +741,7 @@
     <string name="settings_search_history_summary">Forget the terms you searched for on this device.</string>
     <string name="settings_search_history_cleared">Search history cleared</string>
     <string name="settings_cache_cleared_files">Removed %1$d cached thumbnails</string>
+    <string name="settings_cache_trimmed">Removed %1$d old thumbnails to fit the new cache limit</string>
     <string name="settings_value_on">On</string>
     <string name="settings_value_off">Off</string>
     <string name="settings_storage_used">%1$s used</string>

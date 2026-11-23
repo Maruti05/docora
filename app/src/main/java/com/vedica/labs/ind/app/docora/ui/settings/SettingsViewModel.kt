@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -46,6 +47,7 @@ class SettingsViewModel @Inject constructor(
     private val thumbnailStore: ThumbnailStore,
     private val biometricAuthenticator: BiometricAuthenticator,
     private val appLockManager: AppLockManager,
+    private val dispatchers: com.vedica.labs.ind.app.docora.core.common.DispatcherProvider,
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = preferencesManager.settings
@@ -100,13 +102,27 @@ class SettingsViewModel @Inject constructor(
     fun setScannerFilter(filter: ScanFilter) = update { it.copy(scannerFilter = filter) }
 
     fun setTrashRetention(retention: TrashRetention) = update { it.copy(trashRetention = retention) }
-    fun setThumbnailCacheLimit(mb: Int) = update {
-        it.copy(
-            thumbnailCacheLimitMb = mb.coerceIn(
-                ThumbnailCacheLimits.MIN_MB,
-                AppSettings.MAX_THUMBNAIL_CACHE_MB,
-            ),
-        )
+    fun setIndexDocumentText(enabled: Boolean) = update { it.copy(indexDocumentText = enabled) }
+    fun setIndexOcrText(enabled: Boolean) = update { it.copy(indexOcrText = enabled) }
+
+    /**
+     * Saves a new cache ceiling and immediately shrinks the cache to it, so the setting has a
+     * visible effect instead of being a number that only applies "some day".
+     */
+    fun setThumbnailCacheLimit(mb: Int) {
+        val clamped = mb.coerceIn(ThumbnailCacheLimits.MIN_MB, AppSettings.MAX_THUMBNAIL_CACHE_MB)
+        update { it.copy(thumbnailCacheLimitMb = clamped) }
+        viewModelScope.launch {
+            val removed = withContext(dispatchers.io) {
+                runCatching {
+                    thumbnailStore.trimToLimit(clamped.toLong() * MEGABYTE)
+                }.getOrDefault(0)
+            }
+            _cacheBytes.value = runCatching { thumbnailStore.cacheSizeBytes() }.getOrDefault(0L)
+            if (removed > 0) {
+                _message.value = SettingsMessage(R.string.settings_cache_trimmed, removed)
+            }
+        }
     }
 
     fun clearThumbnailCache() {
@@ -301,10 +317,9 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun update(transform: (AppSettings) -> AppSettings) {
-        viewModelScope.launch {
-            runCatching { preferencesManager.update(transform) }
-                .onFailure { DocoraLog.w(TAG, "settings_update_failed", it) }
-        }
+        // Application-scoped write: tapping a switch and immediately leaving the screen must not
+        // cancel the write that makes the choice stick.
+        preferencesManager.updateInBackground(transform)
     }
 
     /**
@@ -316,15 +331,16 @@ class SettingsViewModel @Inject constructor(
     var unlockTitle: String = "Unlock Docora"
     var unlockSubtitle: String = "Confirm it is you to turn App Lock on"
 
-    private companion object {
-        const val TAG = "SettingsViewModel"
-        const val MAX_REINDEX_DOCUMENTS = 20_000
-    }
-
     /** Bounds for the thumbnail-cache slider; referenced by the sheet so values cannot drift. */
     object ThumbnailCacheLimits {
         const val MIN_MB = 32
         const val STEP_MB = 32
+    }
+
+    private companion object {
+        const val TAG = "SettingsViewModel"
+        const val MAX_REINDEX_DOCUMENTS = 20_000
+        const val MEGABYTE = 1024L * 1024L
     }
 }
 

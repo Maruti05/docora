@@ -3,8 +3,6 @@ package com.vedica.labs.ind.app.docora.ui.settings
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.automirrored.filled.ManageSearch
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -18,9 +16,7 @@ import com.vedica.labs.ind.app.docora.core.model.TrashRetention
 import com.vedica.labs.ind.app.docora.core.util.FileSizeFormatter
 
 /**
- * Disk space and the search index, grouped together because both describe what Docora keeps on
- * this device: how long the trash holds documents, how big the thumbnail cache may grow, and the
- * two maintenance passes over the index and the search history.
+ * Disk space: how long the trash holds documents and how large the thumbnail cache may grow.
  *
  * Each maintenance action shows a spinner while it runs; the ViewModel serialises them, so a
  * second tap while one is in flight is ignored instead of racing it.
@@ -34,14 +30,13 @@ fun StorageSection(s: AppSettings, cacheBytes: Long, busy: SettingsBusy, vm: Set
         s.thumbnailCacheLimitMb,
         FileSizeFormatter.format(cacheBytes),
     )
-    val reindexing = busy == SettingsBusy.REINDEX
     val working = busy == SettingsBusy.WORKING
 
-    SettingsSection(title = stringResource(R.string.settings_section_storage_search)) {
+    SettingsSection(title = stringResource(R.string.settings_section_storage)) {
         SettingsRow(
             icon = Icons.Filled.DeleteOutline,
             title = stringResource(R.string.settings_trash_retention),
-            subtitle = retentionLabel(s.trashRetention),
+            subtitle = stringResource(R.string.settings_trash_retention_summary),
             accent = SettingsAccent.ERROR,
             trailing = { SettingsValueTrailing(retentionLabel(s.trashRetention)) },
             onClick = { retentionSheet = true },
@@ -63,25 +58,6 @@ fun StorageSection(s: AppSettings, cacheBytes: Long, busy: SettingsBusy, vm: Set
             trailing = { if (working) SettingsSpinnerTrailing() },
             onClick = { vm.clearThumbnailCache() },
         )
-        SettingsDivider()
-        SettingsRow(
-            icon = Icons.AutoMirrored.Filled.ManageSearch,
-            title = stringResource(R.string.settings_index_rebuild),
-            subtitle = stringResource(R.string.settings_index_rebuild_summary),
-            accent = SettingsAccent.SECONDARY,
-            enabled = !reindexing,
-            trailing = { if (reindexing) SettingsSpinnerTrailing() },
-            onClick = { vm.rebuildSearchIndex() },
-        )
-        SettingsDivider()
-        SettingsRow(
-            icon = Icons.Filled.History,
-            title = stringResource(R.string.settings_search_history),
-            subtitle = historyLabel(s.recentSearches.size),
-            accent = SettingsAccent.SECONDARY,
-            enabled = s.recentSearches.isNotEmpty(),
-            onClick = { vm.clearRecentSearches() },
-        )
     }
 
     if (retentionSheet) {
@@ -100,7 +76,7 @@ fun StorageSection(s: AppSettings, cacheBytes: Long, busy: SettingsBusy, vm: Set
         SettingsSliderSheet(
             title = stringResource(R.string.settings_thumbnail_cache_sheet_title),
             message = stringResource(R.string.settings_thumbnail_cache_sheet_message),
-            valueLabel = { value -> stringResource(R.string.settings_storage_used, "$value MB") },
+            valueLabel = { value -> "$value MB" },
             applyLabel = stringResource(R.string.settings_cache_apply),
             current = s.thumbnailCacheLimitMb,
             range = SettingsViewModel.ThumbnailCacheLimits.MIN_MB..AppSettings.MAX_THUMBNAIL_CACHE_MB,
@@ -117,11 +93,4 @@ private fun retentionLabel(retention: TrashRetention): String = when (retention)
     TrashRetention.THIRTY_DAYS -> stringResource(R.string.settings_trash_retention_30)
     TrashRetention.NINETY_DAYS -> stringResource(R.string.settings_trash_retention_90)
     TrashRetention.FOREVER -> stringResource(R.string.settings_trash_retention_forever)
-}
-
-@Composable
-private fun historyLabel(count: Int): String = if (count == 0) {
-    stringResource(R.string.settings_search_history_summary_empty)
-} else {
-    stringResource(R.string.settings_search_history_summary_count, count)
 }

@@ -5,6 +5,7 @@ import androidx.datastore.core.CorruptionException
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
+import com.vedica.labs.ind.app.docora.core.common.DocoraLog
 import com.vedica.labs.ind.app.docora.core.model.AppSettings
 import com.vedica.labs.ind.app.docora.core.model.AutoLockTimeout
 import com.vedica.labs.ind.app.docora.core.model.ScanFilter
@@ -15,9 +16,13 @@ import com.vedica.labs.ind.app.docora.core.model.SortOrder
 import com.vedica.labs.ind.app.docora.core.model.ThemeMode
 import com.vedica.labs.ind.app.docora.core.model.TrashRetention
 import com.vedica.labs.ind.app.docora.core.model.ViewMode
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -134,6 +139,16 @@ val Context.settingsDataStore: DataStore<AppSettingsDto> by dataStore(
  */
 class PreferencesManager(private val context: Context) {
 
+    /**
+     * Writes started from this scope survive the screen that requested them.
+     *
+     * UI settings are often changed right before the user leaves the screen or closes the app.
+     * Writing from a ViewModel's scope meant that navigation could cancel the write, which is
+     * exactly how a grid/list or sort choice used to come back as the old value. DataStore still
+     * serialises the writes; this scope only keeps them alive long enough to reach disk.
+     */
+    private val writeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     val settings: Flow<AppSettings> = context.settingsDataStore.data
         .catch { throwable ->
             // A corrupted settings file must not break the app: it is replaced by defaults. Real
@@ -149,6 +164,14 @@ class PreferencesManager(private val context: Context) {
     suspend fun update(transform: (AppSettings) -> AppSettings) {
         context.settingsDataStore.updateData { current ->
             transform(current.toDomain()).toDto()
+        }
+    }
+
+    /** Fire-and-forget write for controls that must persist even if their screen goes away. */
+    fun updateInBackground(transform: (AppSettings) -> AppSettings) {
+        writeScope.launch {
+            runCatching { update(transform) }
+                .onFailure { DocoraLog.w("Preferences", "write_failed", it) }
         }
     }
 }

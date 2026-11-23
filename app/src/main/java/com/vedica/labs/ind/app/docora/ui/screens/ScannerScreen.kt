@@ -89,6 +89,7 @@ import com.vedica.labs.ind.app.docora.core.model.ScannerQuality
 import com.vedica.labs.ind.app.docora.ui.designsystem.LocalDocoraGradients
 import com.vedica.labs.ind.app.docora.ui.designsystem.LocalDocoraMotion
 import com.vedica.labs.ind.app.docora.ui.designsystem.LocalDocoraSpacing
+import com.vedica.labs.ind.app.docora.ui.designsystem.SystemBarAppearance
 import com.vedica.labs.ind.app.docora.ui.scanner.CaptureFlashOverlay
 import com.vedica.labs.ind.app.docora.ui.scanner.ScanCaptureButton
 import com.vedica.labs.ind.app.docora.ui.scanner.ScanDetectionOverlay
@@ -289,6 +290,8 @@ fun ScannerScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    // The camera stage is dark in both themes, so the status icons must stay light.
+    SystemBarAppearance(useDarkIcons = false)
     val lifecycleOwner = LocalLifecycleOwner.current
     val snacks = remember { SnackbarHostState() }
 

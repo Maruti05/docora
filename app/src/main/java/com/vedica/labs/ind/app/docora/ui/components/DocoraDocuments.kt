@@ -45,8 +45,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.vedica.labs.ind.app.docora.core.model.DocumentType
 import com.vedica.labs.ind.app.docora.ui.designsystem.ThumbnailShape
-import com.vedica.labs.ind.app.docora.ui.home.typeBackground
 import com.vedica.labs.ind.app.docora.ui.home.typeIcon
+
+/**
+ * Neutral fallback surface for a document with no renderable preview.
+ *
+ * File-type colour badges made the library look like a row of app icons. The type is already
+ * spelled out in the row's meta line, so the fallback is a quiet neutral tile and a monochrome
+ * glyph; real page previews are what carry the colour.
+ */
+@Composable
+private fun typeBackground(): Color = MaterialTheme.colorScheme.surfaceContainerHigh
+
 
 /**
  * Renders a document preview thumbnail, falling back to the file-type glyph.
@@ -65,7 +75,7 @@ fun DocumentThumbnail(
     size: Dp? = null,
 ) {
     var bitmap by remember(uri, targetPx) { mutableStateOf<Bitmap?>(null) }
-    val fallback = typeBackground(type)
+    val fallback = typeBackground()
     val boxModifier = if (size != null) modifier.size(size) else modifier
     Box(
         modifier = boxModifier
@@ -88,8 +98,8 @@ fun DocumentThumbnail(
             Icon(
                 imageVector = typeIcon(type),
                 contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(26.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
             )
         }
     }
@@ -150,7 +160,6 @@ fun DocumentRow(
     menuItems: List<DocumentMenuAction> = emptyList(),
     onLongPress: (() -> Unit)? = null,
 ) {
-    val extended = com.vedica.labs.ind.app.docora.ui.designsystem.LocalDocoraExtendedColors.current
     androidx.compose.material3.Card(
         shape = MaterialTheme.shapes.large,
         colors = androidx.compose.material3.CardDefaults.cardColors(
@@ -200,7 +209,7 @@ fun DocumentRow(
                 Icon(
                     imageVector = Icons.Filled.Star,
                     contentDescription = null,
-                    tint = extended.favourite,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(4.dp))
@@ -289,13 +298,15 @@ fun DocumentGridTile(
         colors = androidx.compose.material3.CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
-        modifier = modifier.then(
-            if (onLongPress != null) {
-                Modifier.combinedClickable(onClick = onClick, onLongClick = onLongPress)
-            } else {
-                Modifier
-            },
-        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (onLongPress != null) {
+                    Modifier.combinedClickable(onClick = onClick, onLongClick = onLongPress)
+                } else {
+                    Modifier
+                },
+            ),
     ) {
         Column {
             Box(Modifier.fillMaxWidth().height(thumbnailHeight)) {
@@ -321,8 +332,11 @@ fun DocumentGridTile(
                 Text(
                     document.displayName,
                     style = MaterialTheme.typography.titleSmall,
+                    // Always reserve two lines: a one-line title would otherwise make its card
+                    // shorter than the rest of the row. Longer names truncate with the ellipsis
+                    // instead of changing the card's height.
+                    minLines = 2,
                     maxLines = 2,
-                    minLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(2.dp))

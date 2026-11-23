@@ -57,6 +57,7 @@ import com.vedica.labs.ind.app.docora.R
 import com.vedica.labs.ind.app.docora.core.model.Document
 import com.vedica.labs.ind.app.docora.core.util.FileSizeFormatter
 import com.vedica.labs.ind.app.docora.ui.components.DocumentRow
+import com.vedica.labs.ind.app.docora.ui.components.LocalBottomBarInset
 import com.vedica.labs.ind.app.docora.ui.home.typeIcon
 import com.vedica.labs.ind.app.docora.ui.screens.Screen
 
@@ -217,8 +218,14 @@ private fun ResultsList(
     onOpen: (String) -> Unit,
     onOpenDetails: (String) -> Unit,
 ) {
+    val bottomInset = 20.dp + LocalBottomBarInset.current
     LazyColumn(
-        contentPadding = PaddingValues(20.dp),
+        contentPadding = PaddingValues(
+            start = 20.dp,
+            top = 20.dp,
+            end = 20.dp,
+            bottom = bottomInset,
+        ),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxSize(),
     ) {

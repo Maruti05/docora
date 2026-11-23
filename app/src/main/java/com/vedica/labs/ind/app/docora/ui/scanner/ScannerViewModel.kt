@@ -19,6 +19,7 @@ import com.vedica.labs.ind.app.docora.core.model.ScanMode
 import com.vedica.labs.ind.app.docora.core.model.ScanOutput
 import com.vedica.labs.ind.app.docora.core.model.QuadCorners
 import com.vedica.labs.ind.app.docora.core.model.ScannerQuality
+import com.vedica.labs.ind.app.docora.core.processing.DocumentEnricher
 import com.vedica.labs.ind.app.docora.core.repository.DocumentRepository
 import com.vedica.labs.ind.app.docora.core.scanner.ScanDocumentWriter
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -104,6 +105,7 @@ class ScannerViewModel @Inject constructor(
     private val writer: ScanDocumentWriter,
     private val documentRepository: DocumentRepository,
     private val preferencesManager: PreferencesManager,
+    private val documentEnricher: DocumentEnricher,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ScannerUiState())
@@ -463,6 +465,7 @@ class ScannerViewModel @Inject constructor(
                 pageLooksReady = false,
             )
         }
+        documentEnricher.start()
         val saved: Document? = ids.firstOrNull()?.let { documentRepository.getDocument(it) }
         _message.value = when {
             snapshot.output != ScanOutput.PDF ->

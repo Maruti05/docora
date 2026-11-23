@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -41,6 +42,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material.icons.filled.Storage
@@ -64,9 +66,9 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -74,6 +76,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import kotlinx.coroutines.launch
@@ -91,6 +95,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -109,14 +114,15 @@ import com.vedica.labs.ind.app.docora.core.model.DocumentSort
 import com.vedica.labs.ind.app.docora.core.model.SortDirection
 import com.vedica.labs.ind.app.docora.core.model.SortOrder
 import com.vedica.labs.ind.app.docora.core.storage.DeviceDocument
-import com.vedica.labs.ind.app.docora.core.util.MimeTypes
+import com.vedica.labs.ind.app.docora.ui.components.DeviceDocumentRow
 import com.vedica.labs.ind.app.docora.ui.components.DocumentGridTile
 import com.vedica.labs.ind.app.docora.ui.components.DocumentRow
 import com.vedica.labs.ind.app.docora.ui.components.DocumentSectionHeader
-import com.vedica.labs.ind.app.docora.ui.components.DeviceDocumentRow
+import com.vedica.labs.ind.app.docora.ui.components.DocoraSkeleton
+import com.vedica.labs.ind.app.docora.ui.components.LocalBottomBarInset
+import com.vedica.labs.ind.app.docora.ui.components.StoragePermissionCard
 import com.vedica.labs.ind.app.docora.ui.home.categoryIcon
 import com.vedica.labs.ind.app.docora.ui.home.categoryNameRes
-import com.vedica.labs.ind.app.docora.ui.components.StoragePermissionCard
 import com.vedica.labs.ind.app.docora.ui.designsystem.DocoraThemeTokens
 import com.vedica.labs.ind.app.docora.ui.designsystem.LocalDocoraExtendedColors
 import com.vedica.labs.ind.app.docora.ui.designsystem.gridColumnsFor
@@ -125,9 +131,9 @@ import com.vedica.labs.ind.app.docora.ui.designsystem.rememberDocoraWidthClass
 /**
  * The library browser (PRD §16, §23, §28).
  *
- * Two sources are shown: the Docora library (Room, instant, filterable) and, when storage
- * permission is granted, a bounded MediaStore discovery section whose files can be imported
- * with a tap. Long-press enters multi-select with bulk favourite/trash actions (PRD §28).
+ * The Docora library (Room, instant, filterable) is the single source shown here; files already
+ * on the device are imported automatically as soon as storage access is granted. Long-press
+ * enters multi-select with bulk favourite/trash actions (PRD §28).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -145,10 +151,6 @@ fun DocumentsScreen(
     // hide the sheet before the sort (and its list reshuffle) is applied.
     val sortSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val sortSheetScope = rememberCoroutineScope()
-
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments(),
-    ) { uris -> vm.importUris(uris.toList()) { } }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -171,6 +173,12 @@ fun DocumentsScreen(
         else permissionLauncher.launch(vm.storagePermissions())
     }
 
+    // One toggle for the bulk action: filled star means every selected document is already a
+    // favourite, so the next tap removes them all; outline star adds them all.
+    val selectedAreFavorite = state.selection.isNotEmpty() && state.documents
+        .filter { it.id in state.selection }
+        .let { selected -> selected.isNotEmpty() && selected.all { it.isFavorite } }
+
     LaunchedEffect(message) {
         message?.let {
             snacks.showSnackbar(it)
@@ -183,6 +191,9 @@ fun DocumentsScreen(
         topBar = {
             if (state.selection.isEmpty()) {
                 DocumentsTopBar(
+                    title = state.category
+                        ?.let { stringResource(categoryNameRes(it)) }
+                        ?: stringResource(R.string.documents_title),
                     isGrid = state.viewMode.isGrid,
                     isRefreshing = state.syncing,
                     onSortClick = { showSortSheet = true },
@@ -198,9 +209,9 @@ fun DocumentsScreen(
             } else {
                 SelectionTopBar(
                     count = state.selection.size,
+                    allFavorite = selectedAreFavorite,
                     onClear = vm::clearSelection,
-                    onFavorite = { vm.setBulkFavorite(true) },
-                    onUnfavorite = { vm.setBulkFavorite(false) },
+                    onToggleFavorite = { vm.setBulkFavorite(!selectedAreFavorite) },
                     onDelete = vm::bulkTrash,
                 )
             }
@@ -217,7 +228,23 @@ fun DocumentsScreen(
                 selected = state.filter,
                 onSelect = vm::setFilter,
             )
-            if (!state.hasStoragePermission) {
+            LibrarySummary(state = state)
+            if (state.isLoading || state.syncing || state.deviceLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                )
+            }
+            // The permission ask is only relevant to a library that has nothing to show. Once
+            // documents are present the browser is already useful, so a full-width permission
+            // card is just an interruption; the refresh action still requests access if needed.
+            if (
+                !state.hasStoragePermission &&
+                !state.isLoading &&
+                state.documents.isEmpty() &&
+                state.deviceDocuments.isEmpty()
+            ) {
                 StoragePermissionCard(
                     onAllow = requestStorageAccess,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
@@ -228,9 +255,6 @@ fun DocumentsScreen(
                 vm = vm,
                 controller = controller,
                 onTag = { tagTarget = it },
-                onImportDevice = {
-                    importLauncher.launch(MimeTypes.importableMimeTypes)
-                },
             )
         }
     }
@@ -265,6 +289,7 @@ fun DocumentsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DocumentsTopBar(
+    title: String,
     isGrid: Boolean,
     isRefreshing: Boolean,
     onSortClick: () -> Unit,
@@ -272,7 +297,7 @@ private fun DocumentsTopBar(
     onRefresh: () -> Unit,
 ) {
     TopAppBar(
-        title = { Text(stringResource(R.string.documents_title)) },
+        title = { Text(title) },
         actions = {
             IconButton(onClick = onSortClick) {
                 Icon(
@@ -312,9 +337,9 @@ private fun DocumentsTopBar(
 @Composable
 private fun SelectionTopBar(
     count: Int,
+    allFavorite: Boolean,
     onClear: () -> Unit,
-    onFavorite: () -> Unit,
-    onUnfavorite: () -> Unit,
+    onToggleFavorite: () -> Unit,
     onDelete: () -> Unit,
 ) {
     TopAppBar(
@@ -325,11 +350,13 @@ private fun SelectionTopBar(
             }
         },
         actions = {
-            IconButton(onClick = onFavorite) {
-                Icon(Icons.Filled.Star, contentDescription = stringResource(R.string.action_favourite))
-            }
-            IconButton(onClick = onUnfavorite) {
-                Icon(Icons.Filled.StarBorder, contentDescription = stringResource(R.string.action_unfavourite))
+            IconButton(onClick = onToggleFavorite) {
+                Icon(
+                    imageVector = if (allFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+                    contentDescription = stringResource(
+                        if (allFavorite) R.string.action_unfavourite else R.string.action_favourite,
+                    ),
+                )
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete), tint = MaterialTheme.colorScheme.error)
@@ -596,16 +623,82 @@ private fun SortOptionRow(
 
 @Composable
 private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
-    OutlinedTextField(
+    val scheme = MaterialTheme.colorScheme
+    TextField(
         value = query,
         onValueChange = onQueryChange,
-        placeholder = { Text(stringResource(R.string.home_search_hint)) },
-        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+        placeholder = {
+            Text(
+                text = stringResource(R.string.home_search_hint),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Filled.Search,
+                contentDescription = null,
+                tint = scheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        },
+        trailingIcon = if (query.isNotEmpty()) {
+            {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.documents_clear_search),
+                        tint = scheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+        } else {
+            null
+        },
         singleLine = true,
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = RoundedCornerShape(18.dp),
+        textStyle = MaterialTheme.typography.bodyMedium,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = scheme.surfaceContainerHigh,
+            unfocusedContainerColor = scheme.surfaceContainerHigh,
+            disabledContainerColor = scheme.surfaceContainerHigh,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent,
+        ),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 4.dp),
+    )
+}
+
+/**
+ * The count of the current window, plus whether more documents are waiting to load.
+ *
+ * It replaces a search field that looked like a form control with a quiet filled bar, and gives
+ * the browser the one piece of information a file list should always expose: how many files the
+ * current query/filter actually matched.
+ */
+@Composable
+private fun LibrarySummary(state: DocumentsUiState) {
+    if (state.isLoading && state.documents.isEmpty()) return
+    val count = state.documents.size
+    val filtered = state.query.isNotBlank() ||
+        state.category != null ||
+        state.filter != DocumentFilter.ALL
+    val label = when {
+        filtered -> pluralStringResource(R.plurals.plural_results, count, count)
+        else -> pluralStringResource(
+            R.plurals.plural_documents,
+            state.totalDocuments,
+            state.totalDocuments,
+        )
+    }
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 2.dp),
     )
 }
 
@@ -640,6 +733,38 @@ private fun filterTitleRes(filter: DocumentFilter): Int = when (filter) {
     DocumentFilter.NEEDS_OCR -> R.string.documents_filter_ocr_pending
 }
 
+/**
+ * Initial library placeholder: six rows shaped like the real list, so the first paint already has
+ * the rhythm of the content instead of a lone spinner in the middle of the screen.
+ */
+@Composable
+private fun LibrarySkeleton() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        repeat(6) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DocoraSkeleton(
+                    modifier = Modifier.size(52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    DocoraSkeleton(Modifier.fillMaxWidth(0.72f).height(14.dp))
+                    Spacer(Modifier.height(7.dp))
+                    DocoraSkeleton(Modifier.fillMaxWidth(0.42f).height(10.dp))
+                }
+            }
+        }
+    }
+}
+
 /** Routes between the grid/list bodies and their empty states (PRD §64). */
 @Composable
 private fun LibraryBody(
@@ -647,20 +772,23 @@ private fun LibraryBody(
     vm: DocumentsViewModel,
     controller: NavHostController,
     onTag: (com.vedica.labs.ind.app.docora.core.model.Document) -> Unit,
-    onImportDevice: () -> Unit,
 ) {
     val widthClass = rememberDocoraWidthClass()
     val columns = gridColumnsFor(state.viewMode, widthClass)
+    val bottomInset = 20.dp + LocalBottomBarInset.current
+    val category = state.category
 
     if (state.documents.isEmpty() && state.deviceDocuments.isEmpty()) {
         if (state.isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            LibrarySkeleton()
+        } else if (category != null) {
+            EmptyCategory(
+                categoryName = stringResource(categoryNameRes(category)),
+                onBrowseAll = { controller.navigateTopLevel(Screen.Documents) },
+            )
         } else {
             EmptyLibrary(
                 hasQuery = state.query.isNotBlank(),
-                onImport = onImportDevice,
                 onScan = { controller.navigate(Screen.Scanner.route) },
             )
         }
@@ -671,7 +799,12 @@ private fun LibraryBody(
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
             state = rememberLazyGridState(),
-            contentPadding = PaddingValues(20.dp),
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                top = 20.dp,
+                end = 20.dp,
+                bottom = bottomInset,
+            ),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),
@@ -703,7 +836,12 @@ private fun LibraryBody(
         }
     } else {
         LazyColumn(
-            contentPadding = PaddingValues(20.dp),
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                top = 20.dp,
+                end = 20.dp,
+                bottom = bottomInset,
+            ),
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -816,11 +954,55 @@ private fun SelectableTile(
     }
 }
 
-/** Empty state with the two primary entry points (PRD §64). */
+/** Empty state with the primary creation action (PRD §64). */
+@Composable
+private fun EmptyCategory(
+    categoryName: String,
+    onBrowseAll: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Spacer(Modifier.height(48.dp))
+        Box(
+            Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(scheme.secondaryContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.Info,
+                contentDescription = null,
+                tint = scheme.onSecondaryContainer,
+                modifier = Modifier.size(32.dp),
+            )
+        }
+        Text(
+            stringResource(R.string.empty_category_title, categoryName),
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        Text(
+            stringResource(R.string.empty_category_message, categoryName),
+            style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        androidx.compose.material3.TextButton(onClick = onBrowseAll) {
+            Text(stringResource(R.string.nav_documents))
+        }
+    }
+}
+
 @Composable
 private fun EmptyLibrary(
     hasQuery: Boolean,
-    onImport: () -> Unit,
     onScan: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -856,13 +1038,8 @@ private fun EmptyLibrary(
             color = scheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            androidx.compose.material3.Button(onClick = onScan) {
-                Text(stringResource(R.string.action_scan_document))
-            }
-            androidx.compose.material3.OutlinedButton(onClick = onImport) {
-                Text(stringResource(R.string.action_import_files))
-            }
+        androidx.compose.material3.Button(onClick = onScan) {
+            Text(stringResource(R.string.action_scan_document))
         }
     }
 }

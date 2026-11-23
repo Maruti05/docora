@@ -46,7 +46,7 @@ fun SecuritySection(s: AppSettings, vm: SettingsViewModel) {
         SettingsRow(
             icon = Icons.Filled.Timer,
             title = stringResource(R.string.settings_auto_lock),
-            subtitle = autoLockLabel(s.autoLockTimeout),
+            subtitle = stringResource(R.string.settings_auto_lock_summary),
             enabled = s.appLockEnabled,
             trailing = {
                 if (s.appLockEnabled) SettingsValueTrailing(autoLockLabel(s.autoLockTimeout))

@@ -1,5 +1,6 @@
 package com.vedica.labs.ind.app.docora
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -21,16 +22,22 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vedica.labs.ind.app.docora.core.datastore.PreferencesManager
+import com.vedica.labs.ind.app.docora.core.processing.DocumentEnricher
+import com.vedica.labs.ind.app.docora.core.repository.DocumentRepository
 import com.vedica.labs.ind.app.docora.core.security.ActivityLockHost
 import com.vedica.labs.ind.app.docora.core.security.AppLockManager
 import com.vedica.labs.ind.app.docora.core.security.SecureScreenController
 import com.vedica.labs.ind.app.docora.core.storage.DeviceDocumentsSource
 import com.vedica.labs.ind.app.docora.core.storage.DeviceLibrarySynchronizer
+import com.vedica.labs.ind.app.docora.core.files.ThumbnailStore
 import com.vedica.labs.ind.app.docora.ui.designsystem.DocoraTheme
 import com.vedica.labs.ind.app.docora.ui.screens.DocoraApp
 import com.vedica.labs.ind.app.docora.ui.screens.LockGate
 import com.vedica.labs.ind.app.docora.ui.settings.SettingsViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 /**
@@ -65,8 +72,20 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var preferencesManager: PreferencesManager
 
+    @Inject
+    lateinit var documentEnricher: DocumentEnricher
+
+    @Inject
+    lateinit var documentRepository: DocumentRepository
+
+    @Inject
+    lateinit var thumbnailStore: ThumbnailStore
+
     /** Resolves the storage/media grant the automatic scan depends on. */
     private lateinit var mediaPermissionLauncher: ActivityResultLauncher<Array<String>>
+
+    /** Returns from the system "All files access" screen on Android 11 and newer. */
+    private lateinit var allFilesAccessLauncher: ActivityResultLauncher<Intent>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -75,14 +94,31 @@ class MainActivity : FragmentActivity() {
             ActivityResultContracts.RequestMultiplePermissions(),
         ) {
             // Whatever the answer, the scan decides for itself: a denial simply imports nothing.
-            lifecycleScope.launch { deviceLibrarySynchronizer.sync() }
+            lifecycleScope.launch { syncDeviceLibraryIfPermitted() }
+        }
+        allFilesAccessLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult(),
+        ) {
+            lifecycleScope.launch { syncDeviceLibraryIfPermitted() }
         }
         super.onCreate(savedInstanceState)
+
+        // Resume any enrichment the previous process did not finish. The pass is idempotent and
+        // processes only rows still missing a checksum, text layer or OCR result.
+        documentEnricher.start()
+        lifecycleScope.launch { runStartupMaintenance() }
 
         lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onResume(owner: LifecycleOwner) {
                 lockHost.attach(this@MainActivity)
-                lifecycleScope.launch { appLockManager.onEnterForeground() }
+                lifecycleScope.launch {
+                    appLockManager.onEnterForeground()
+                    if (deviceDocumentsSource.hasPermission()) {
+                        syncDeviceLibraryIfPermitted()
+                    } else {
+                        requestStorageAccessOnFirstLaunch()
+                    }
+                }
             }
 
             override fun onPause(owner: LifecycleOwner) {
@@ -90,8 +126,6 @@ class MainActivity : FragmentActivity() {
                 lifecycleScope.launch { appLockManager.onEnterBackground() }
             }
         })
-
-        lifecycleScope.launch { scanDeviceOnLaunch() }
 
         setContent {
             DocoraThemeHost(
@@ -102,24 +136,56 @@ class MainActivity : FragmentActivity() {
     }
 
     /**
-     * Imports the documents already on the device, and asks for the permission that makes it
-     * possible - exactly once per install, so a user who declines is not asked again on every
-     * launch. The documents browser keeps an explicit card for the cases where the prompt was
-     * dismissed or the grant was later revoked.
+     * Requests the access that makes every document on the device visible. Android 11+ gates the
+     * document set behind the "All files access" system screen, so that screen is opened directly;
+     * older releases use the normal runtime dialog.
+     *
+     * The request happens once per install. If it is declined, the documents browser keeps an
+     * "Allow" card, and the automatic scan runs the moment access is granted.
      */
-    private suspend fun scanDeviceOnLaunch() {
-        if (deviceDocumentsSource.hasPermission()) {
-            deviceLibrarySynchronizer.sync()
-            return
-        }
+    private suspend fun requestStorageAccessOnFirstLaunch() {
+        if (deviceDocumentsSource.hasPermission()) return
         if (preferencesManager.settings.first().deviceScanAsked) return
 
         preferencesManager.update { it.copy(deviceScanAsked = true) }
-        // Android 11+ has no runtime dialog for all-files access; the in-app permission card on the
-        // documents screen opens the system screen instead, so there is nothing to launch here.
-        val permissions = deviceDocumentsSource.requiredPermissions()
-        if (permissions.isNotEmpty()) {
-            runCatching { mediaPermissionLauncher.launch(permissions) }
+        if (deviceDocumentsSource.requiresAllFilesAccess()) {
+            runCatching {
+                allFilesAccessLauncher.launch(deviceDocumentsSource.allFilesAccessIntent())
+            }
+        } else {
+            val permissions = deviceDocumentsSource.requiredPermissions()
+            if (permissions.isNotEmpty()) {
+                runCatching { mediaPermissionLauncher.launch(permissions) }
+            }
+        }
+    }
+
+    private suspend fun syncDeviceLibraryIfPermitted() {
+        if (deviceDocumentsSource.hasPermission()) {
+            deviceLibrarySynchronizer.sync()
+            // Newly imported rows start unprocessed; kick the same pass so the Home progress
+            // banner covers them instead of leaving them pending until the next launch.
+            documentEnricher.start()
+        }
+    }
+
+    /**
+     * Applies the two storage policies that would otherwise be numbers in Settings with no effect:
+     * documents older than the trash-retention window are purged, and the thumbnail cache is
+     * trimmed to the user's ceiling. Runs once per process, off the main thread.
+     */
+    private suspend fun runStartupMaintenance() {
+        val settings = runCatching { preferencesManager.settings.first() }.getOrNull() ?: return
+        settings.trashRetention.days?.let { days ->
+            val cutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(days.toLong())
+            runCatching { documentRepository.purgeTrashOlderThan(cutoff) }
+        }
+        withContext(Dispatchers.IO) {
+            runCatching {
+                thumbnailStore.trimToLimit(
+                    settings.thumbnailCacheLimitMb.toLong() * 1024L * 1024L,
+                )
+            }
         }
     }
 }

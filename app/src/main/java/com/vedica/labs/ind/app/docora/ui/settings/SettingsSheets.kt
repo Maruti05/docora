@@ -164,7 +164,6 @@ fun SettingsSliderSheet(
             Slider(
                 value = draft,
                 onValueChange = { draft = it },
-                onValueChangeFinished = { onApply(draft.toInt()) },
                 valueRange = range.first.toFloat()..range.last.toFloat(),
                 steps = ((range.last - range.first) / step) - 1,
             )

@@ -1,5 +1,6 @@
 package com.vedica.labs.ind.app.docora.core.storage
 
+import com.vedica.labs.ind.app.docora.core.common.DocoraLog
 import com.vedica.labs.ind.app.docora.core.repository.DocumentRepository
 import com.vedica.labs.ind.app.docora.core.util.DocumentLimits
 import kotlinx.coroutines.sync.Mutex
@@ -69,6 +70,11 @@ class DeviceLibrarySynchronizer @Inject constructor(
     ): DeviceSyncOutcome = mutex.withLock {
         if (!source.hasPermission()) return@withLock DeviceSyncOutcome.NoPermission
 
+        val removedPictures = documentRepository.removeImportedDeviceImages()
+        if (removedPictures > 0) {
+            DocoraLog.i("devicesync", "removed_device_pictures", "count" to removedPictures)
+        }
+
         val discovered = source.query(limit = limit, maxAgeDays = maxAgeDays)
         if (discovered.isEmpty()) {
             return@withLock DeviceSyncOutcome(
@@ -85,14 +91,32 @@ class DeviceLibrarySynchronizer @Inject constructor(
         // them through would abort the batch for a reason the user cannot act on.
         val pending = discovered.filter { it.uri !in known && !DocumentLimits.isTooLargeToOpen(it.sizeBytes) }
 
+        DocoraLog.i(
+            "devicesync",
+            "pass",
+            "discovered" to discovered.size,
+            "known" to known.size,
+            "pending" to pending.size,
+        )
+
         var imported = 0
         var failed = 0
         pending.forEach { device ->
             // One bad file must not cost the whole scan, so each insert is isolated.
             runCatching { documentRepository.import(device.toImportRequest()) }
                 .onSuccess { imported++ }
-                .onFailure { failed++ }
+                .onFailure { error ->
+                    failed++
+                    DocoraLog.w("devicesync", "import_failed", error)
+                }
         }
+
+        DocoraLog.i(
+            "devicesync",
+            "done",
+            "imported" to imported,
+            "failed" to failed,
+        )
 
         DeviceSyncOutcome(
             permissionGranted = true,
@@ -109,7 +133,7 @@ class DeviceLibrarySynchronizer @Inject constructor(
          * point of the sync is to make the whole document set reachable, not just the newest
          * page of it.
          */
-        const val SYNC_LIMIT = 500
-        const val SYNC_MAX_AGE_DAYS = 1825
+        const val SYNC_LIMIT = 10_000
+        const val SYNC_MAX_AGE_DAYS = 36_500
     }
 }

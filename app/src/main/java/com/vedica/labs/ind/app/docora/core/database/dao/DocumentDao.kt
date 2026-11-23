@@ -114,10 +114,12 @@ interface DocumentDao {
             (SELECT COUNT(*) FROM documents WHERE is_trash = 0 AND is_archived = 0 AND document_type = 'IMAGE') AS images,
             (SELECT COUNT(*) FROM documents WHERE is_trash = 0 AND ocr_state IN ('NOT_PROCESSED', 'PROCESSING') AND document_type IN ('PDF', 'IMAGE')) AS needsOcr,
             (SELECT COUNT(*) FROM documents WHERE is_trash = 1) AS trashed,
-            (SELECT COUNT(*) FROM documents WHERE is_trash = 0 AND (
-                thumbnail_path IS NULL OR checksum_sha256 IS NULL OR
-                text_state IN ('NOT_PROCESSED', 'PROCESSING') OR
-                ocr_state IN ('NOT_PROCESSED', 'PROCESSING')
+            (SELECT COUNT(*) FROM documents WHERE is_trash = 0 AND is_archived = 0 AND (
+                checksum_sha256 IS NULL OR
+                (text_state IN ('NOT_PROCESSED', 'PROCESSING') AND
+                    document_type IN ('PDF', 'TEXT', 'WORD_DOCUMENT', 'SPREADSHEET', 'PRESENTATION')) OR
+                (ocr_state IN ('NOT_PROCESSED', 'PROCESSING') AND
+                    document_type IN ('PDF', 'IMAGE'))
             )) AS pendingIndexing,
             (SELECT COALESCE(SUM(size_bytes), 0) FROM documents WHERE is_trash = 0) AS totalBytes,
             (SELECT COALESCE(SUM(size_bytes), 0) FROM documents WHERE is_trash = 1) AS trashBytes
@@ -227,20 +229,22 @@ interface DocumentDao {
     // ------------------------------------------------------- background work state
 
     @Query(
-        "SELECT * FROM documents WHERE is_trash = 0 AND " +
-            "(thumbnail_path IS NULL OR checksum_sha256 IS NULL) LIMIT :limit",
+        "SELECT * FROM documents WHERE is_trash = 0 AND is_archived = 0 " +
+            "AND checksum_sha256 IS NULL ORDER BY modified_at DESC LIMIT :limit",
     )
     suspend fun getPendingEnrichment(limit: Int = 8): List<DocumentEntity>
 
     @Query(
-        "SELECT * FROM documents WHERE is_trash = 0 AND text_state IN ('NOT_PROCESSED', 'FAILED') " +
+        "SELECT * FROM documents WHERE is_trash = 0 AND is_archived = 0 " +
+            "AND text_state IN ('NOT_PROCESSED', 'PROCESSING') " +
             "AND document_type IN ('PDF', 'TEXT', 'WORD_DOCUMENT', 'SPREADSHEET', 'PRESENTATION') " +
             "ORDER BY modified_at DESC LIMIT :limit",
     )
     suspend fun getPendingTextExtraction(limit: Int = 5): List<DocumentEntity>
 
     @Query(
-        "SELECT * FROM documents WHERE is_trash = 0 AND ocr_state IN ('NOT_PROCESSED', 'FAILED') " +
+        "SELECT * FROM documents WHERE is_trash = 0 AND is_archived = 0 " +
+            "AND ocr_state IN ('NOT_PROCESSED', 'PROCESSING') " +
             "AND document_type IN ('PDF', 'IMAGE') ORDER BY modified_at DESC LIMIT :limit",
     )
     suspend fun getPendingTextRecognition(limit: Int = 5): List<DocumentEntity>
@@ -267,6 +271,12 @@ interface DocumentDao {
     suspend fun updateFileFacts(id: String, sizeBytes: Long, modifiedAt: Long)
 
     // ------------------------------------------------------------------ deletion
+
+    @Query(
+        "SELECT id FROM documents WHERE document_type = 'IMAGE' " +
+            "AND source = 'IMPORTED' AND provider_authority = 'media'",
+    )
+    suspend fun importedDeviceImageIds(): List<String>
 
     @Query("DELETE FROM documents WHERE id = :id")
     suspend fun deleteById(id: String)

@@ -4,11 +4,14 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vedica.labs.ind.app.docora.R
 import com.vedica.labs.ind.app.docora.core.datastore.PreferencesManager
 import com.vedica.labs.ind.app.docora.core.handler.DocumentHandlerRegistry
+import com.vedica.labs.ind.app.docora.core.model.AppSettings
+import com.vedica.labs.ind.app.docora.core.model.DashboardStats
 import com.vedica.labs.ind.app.docora.core.model.Document
 import com.vedica.labs.ind.app.docora.core.model.DocumentCategory
 import com.vedica.labs.ind.app.docora.core.model.DocumentFilter
@@ -20,6 +23,7 @@ import com.vedica.labs.ind.app.docora.core.model.SmartCollection
 import com.vedica.labs.ind.app.docora.core.model.SortDirection
 import com.vedica.labs.ind.app.docora.core.model.SortOrder
 import com.vedica.labs.ind.app.docora.core.model.ViewMode
+import com.vedica.labs.ind.app.docora.core.processing.DocumentEnricher
 import com.vedica.labs.ind.app.docora.core.repository.DocumentRepository
 import com.vedica.labs.ind.app.docora.core.storage.DeviceDocument
 import com.vedica.labs.ind.app.docora.core.storage.DeviceDocumentsSource
@@ -37,7 +41,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -48,6 +51,8 @@ import javax.inject.Inject
 data class DocumentsUiState(
     val query: String = "",
     val filter: DocumentFilter = DocumentFilter.ALL,
+    /** Non-null when the browser was opened from a Home category tile. */
+    val category: DocumentCategory? = null,
     val sort: DocumentSort = DocumentSort.Default,
     val viewMode: ViewMode = ViewMode.default,
     val documents: List<Document> = emptyList(),
@@ -59,6 +64,8 @@ data class DocumentsUiState(
     val syncing: Boolean = false,
     /** True when the library window is full, i.e. more documents can still be pulled in. */
     val hasMore: Boolean = false,
+    /** Total number of documents in the library, independent of the current query/filter. */
+    val totalDocuments: Int = 0,
     /** Ids currently selected via long-press (PRD §28). */
     val selection: Set<String> = emptySet(),
 )
@@ -77,6 +84,7 @@ data class DocumentsUiState(
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class DocumentsViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     @ApplicationContext private val context: Context,
     private val documentRepository: DocumentRepository,
     private val safGateway: SafGateway,
@@ -84,11 +92,20 @@ class DocumentsViewModel @Inject constructor(
     private val deviceLibrarySynchronizer: DeviceLibrarySynchronizer,
     private val handlerRegistry: DocumentHandlerRegistry,
     private val preferencesManager: PreferencesManager,
+    private val documentEnricher: DocumentEnricher,
 ) : ViewModel() {
 
-    private data class Controls(val query: String, val filter: DocumentFilter)
+    private data class Controls(
+        val query: String,
+        val filter: DocumentFilter,
+        val category: DocumentCategory?,
+    )
 
-    private val controls = MutableStateFlow(Controls("", DocumentFilter.ALL))
+    /** Fixed for the lifetime of the screen: the Home tile chooses one category per destination. */
+    private val initialCategory: DocumentCategory? =
+        savedStateHandle.get<String>(Screen.ARG_CATEGORY)?.let(DocumentCategory::fromName)
+
+    private val controls = MutableStateFlow(Controls("", DocumentFilter.ALL, initialCategory))
     private val sortFlow = MutableStateFlow(DocumentSort.Default)
     private val viewModeFlow = MutableStateFlow(ViewMode.default)
     private val permissionFlow = MutableStateFlow(deviceDocumentsSource.hasPermission())
@@ -110,6 +127,7 @@ class DocumentsViewModel @Inject constructor(
                 sort = sort,
                 searchQuery = c.query.trim().ifBlank { null },
                 limit = window,
+                category = c.category,
             )
         }
 
@@ -139,6 +157,7 @@ class DocumentsViewModel @Inject constructor(
         documentRepository.observeKnownUris(),
         syncingFlow,
         sortFlow,
+        documentRepository.observeDashboard(),
     ) { args ->
         @Suppress("UNCHECKED_CAST")
         val documents = args[0] as List<Document>
@@ -148,18 +167,22 @@ class DocumentsViewModel @Inject constructor(
         val knownUris = args[3] as Set<String>
         val syncing = args[4] as Boolean
         val sort = args[5] as DocumentSort
+        val totalDocuments = (args[6] as DashboardStats).totalDocuments
         val query = c.query.trim()
         // Anything already imported leaves the device inbox, so the two sections never list the
         // same file twice and the inbox shrinks as the scan works through the device.
         val inbox = meta.device.filterNot { it.uri in knownUris }
-        val filteredInbox = if (query.isEmpty()) {
-            inbox
-        } else {
-            inbox.filter { it.displayName.contains(query, ignoreCase = true) }
+        // Device files are not in the library yet and therefore have no category, so they would
+        // only pollute a category result set.
+        val filteredInbox = when {
+            c.category != null -> emptyList()
+            query.isEmpty() -> inbox
+            else -> inbox.filter { it.displayName.contains(query, ignoreCase = true) }
         }
         DocumentsUiState(
             query = c.query,
             filter = c.filter,
+            category = c.category,
             sort = sort,
             viewMode = meta.viewMode,
             documents = documents,
@@ -168,6 +191,7 @@ class DocumentsViewModel @Inject constructor(
             deviceLoading = meta.deviceLoading,
             isLoading = false,
             syncing = syncing,
+            totalDocuments = totalDocuments,
             // A full window means SQLite may still be holding rows back.
             hasMore = documents.size >= windowFlow.value && windowFlow.value < MAX_WINDOW,
             selection = meta.selection,
@@ -183,14 +207,27 @@ class DocumentsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val settings = preferencesManager.settings.first()
-            viewModeFlow.value = settings.defaultViewMode
-            sortFlow.value = DocumentSort(
-                order = settings.defaultSortOrder,
-                direction = settings.defaultSortDirection,
-            )
-            if (deviceDocumentsSource.hasPermission()) refreshDeviceDocuments()
+            var first = true
+            // Keep the browser in step with settings, not just with its own last state: changing
+            // view or sort from the Settings screen updates an already-open Documents tab too.
+            preferencesManager.settings.collect { settings ->
+                applyPreferences(settings)
+                if (first) {
+                    first = false
+                    if (deviceDocumentsSource.hasPermission()) refreshDeviceDocuments()
+                }
+            }
         }
+    }
+
+    private fun applyPreferences(settings: AppSettings) {
+        val mode = settings.defaultViewMode
+        if (viewModeFlow.value != mode) viewModeFlow.value = mode
+        val sort = DocumentSort(
+            order = settings.defaultSortOrder,
+            direction = settings.defaultSortDirection,
+        )
+        if (sortFlow.value != sort) sortFlow.value = sort
     }
 
     // ------------------------------------------------------------------ controls
@@ -216,10 +253,8 @@ class DocumentsViewModel @Inject constructor(
         if (sortFlow.value == sort) return
         windowFlow.value = DocumentRepository.DEFAULT_PAGE_SIZE
         sortFlow.value = sort
-        viewModelScope.launch {
-            preferencesManager.update {
-                it.copy(defaultSortOrder = sort.order, defaultSortDirection = sort.direction)
-            }
+        preferencesManager.updateInBackground {
+            it.copy(defaultSortOrder = sort.order, defaultSortDirection = sort.direction)
         }
     }
 
@@ -230,8 +265,14 @@ class DocumentsViewModel @Inject constructor(
     }
 
     fun toggleViewMode() {
-        viewModeFlow.value =
-            if (viewModeFlow.value.isGrid) ViewMode.LIST else ViewMode.GRID
+        setViewMode(if (viewModeFlow.value.isGrid) ViewMode.LIST else ViewMode.GRID)
+    }
+
+    /** Applies and persists a layout choice; the top-bar toggle and Settings use the same field. */
+    fun setViewMode(mode: ViewMode) {
+        if (viewModeFlow.value == mode) return
+        viewModeFlow.value = mode
+        preferencesManager.updateInBackground { it.copy(defaultViewMode = mode) }
     }
 
     fun clearMessage() {
@@ -335,6 +376,7 @@ class DocumentsViewModel @Inject constructor(
             deviceLoadingFlow.value = true
 
             val outcome = deviceLibrarySynchronizer.sync()
+            if (outcome.imported > 0) documentEnricher.start()
             permissionFlow.value = outcome.permissionGranted
             deviceFlow.value = if (outcome.permissionGranted) {
                 deviceDocumentsSource.query()
@@ -363,6 +405,7 @@ class DocumentsViewModel @Inject constructor(
             runCatching {
                 documentRepository.import(device.toImportRequest())
             }.onSuccess { document ->
+                documentEnricher.start()
                 onImported(document.id)
             }.onFailure {
                 messageFlow.value = context.getString(
@@ -404,6 +447,7 @@ class DocumentsViewModel @Inject constructor(
                     imported++
                 }
             }
+            if (imported > 0) documentEnricher.start()
             messageFlow.value = if (imported > 0) {
                 context.getString(
                     com.vedica.labs.ind.app.docora.R.string.snack_imported,

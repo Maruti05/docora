@@ -40,7 +40,7 @@ fun ScannerSection(s: AppSettings, vm: SettingsViewModel) {
         SettingsRow(
             icon = Icons.Filled.PhotoCamera,
             title = stringResource(R.string.settings_scanner_mode),
-            subtitle = stringResource(scanModeLabelRes(s.scannerMode)),
+            subtitle = stringResource(R.string.settings_scanner_mode_summary),
             trailing = { SettingsValueTrailing(stringResource(scanModeLabelRes(s.scannerMode))) },
             onClick = { modeSheet = true },
         )
@@ -48,7 +48,7 @@ fun ScannerSection(s: AppSettings, vm: SettingsViewModel) {
         SettingsRow(
             icon = Icons.Filled.HighQuality,
             title = stringResource(R.string.settings_scanner_quality),
-            subtitle = qualityLabel(s.scannerQuality),
+            subtitle = qualitySummary(s.scannerQuality),
             trailing = { SettingsValueTrailing(qualityLabel(s.scannerQuality)) },
             onClick = { qualitySheet = true },
         )
@@ -56,7 +56,7 @@ fun ScannerSection(s: AppSettings, vm: SettingsViewModel) {
         SettingsRow(
             icon = Icons.Filled.AutoAwesome,
             title = stringResource(R.string.settings_scanner_default_filter),
-            subtitle = filterLabel,
+            subtitle = stringResource(R.string.settings_scanner_default_filter_summary),
             trailing = { SettingsValueTrailing(filterLabel) },
             onClick = { filterSheet = true },
         )

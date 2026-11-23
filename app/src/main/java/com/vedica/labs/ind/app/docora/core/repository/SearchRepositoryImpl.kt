@@ -114,10 +114,11 @@ class SearchRepositoryImpl @Inject constructor(
 
     override fun observeIndexingProgress(): Flow<IndexingProgress> =
         documentDao.observeDashboardStats().mapLatest { stats ->
-            val total = (stats.totalDocuments + stats.pendingIndexing).coerceAtLeast(1)
+            val total = stats.totalDocuments.coerceAtLeast(0)
+            val pending = stats.pendingIndexing.coerceIn(0, total)
             IndexingProgress(
                 total = total,
-                processed = (total - stats.pendingIndexing).coerceAtLeast(0),
+                processed = total - pending,
             )
         }
 
