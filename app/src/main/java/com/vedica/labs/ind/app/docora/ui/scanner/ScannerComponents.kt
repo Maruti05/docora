@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Highlight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Contrast
+import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.InvertColors
 import androidx.compose.material.icons.filled.Palette
@@ -598,6 +599,7 @@ fun ScanReviewContent(
     onRotate: (Long) -> Unit,
     onMove: (Long, Int) -> Unit,
     onRemove: (Long) -> Unit,
+    onEdit: (Long) -> Unit,
     onFilter: (ScanFilter) -> Unit,
     onOutput: (ScanOutput) -> Unit,
     onSave: () -> Unit,
@@ -658,6 +660,7 @@ fun ScanReviewContent(
                     onRotate = onRotate,
                     onMove = onMove,
                     onRemove = onRemove,
+                    onEdit = onEdit,
                 )
             }
         }
@@ -719,6 +722,7 @@ private fun ReviewPageRow(
     onRotate: (Long) -> Unit,
     onMove: (Long, Int) -> Unit,
     onRemove: (Long) -> Unit,
+    onEdit: (Long) -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val spacing = LocalDocoraSpacing.current
@@ -735,7 +739,10 @@ private fun ReviewPageRow(
                 modifier = Modifier
                     .size(width = 44.dp, height = 56.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(scheme.surfaceContainerHighest),
+                    .background(scheme.surfaceContainerHighest)
+                    .clickable(onClickLabel = stringResource(R.string.scan_crop_title)) {
+                        onEdit(page.id)
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 if (preview != null && !preview.isRecycled) {
@@ -750,6 +757,22 @@ private fun ReviewPageRow(
                         contentDescription = null,
                         tint = scheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(2.dp)
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(scheme.surface.copy(alpha = 0.88f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Crop,
+                        contentDescription = null,
+                        tint = scheme.onSurfaceVariant,
+                        modifier = Modifier.size(11.dp),
                     )
                 }
             }
@@ -848,11 +871,9 @@ fun ScanGlassButton(
 fun ScanTopBar(
     flashMode: FlashMode,
     torchOn: Boolean,
-    autoCapture: Boolean,
     onBack: () -> Unit,
     onCycleFlash: () -> Unit,
     onToggleTorch: () -> Unit,
-    onToggleAutoCapture: () -> Unit,
     onFlipCamera: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -889,13 +910,6 @@ fun ScanTopBar(
             active = torchOn,
         ) {
             Icon(Icons.Filled.Highlight, contentDescription = null, modifier = Modifier.size(20.dp))
-        }
-        ScanGlassButton(
-            contentDescription = stringResource(R.string.scan_auto_capture),
-            onClick = onToggleAutoCapture,
-            active = autoCapture,
-        ) {
-            Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(20.dp))
         }
         ScanGlassButton(
             contentDescription = stringResource(R.string.scan_flip_camera),

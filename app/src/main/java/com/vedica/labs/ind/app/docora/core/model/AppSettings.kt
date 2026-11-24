@@ -14,7 +14,6 @@ data class AppSettings(
     val secureScreenEnabled: Boolean = false,
     val encryptExtractedText: Boolean = false,
     val scannerQuality: ScannerQuality = ScannerQuality.default,
-    val scannerAutoCapture: Boolean = true,
     val scannerMode: ScanMode = ScanMode.default,
     val scannerFilter: ScanFilter = ScanFilter.default,
     val ocrAfterScan: Boolean = true,

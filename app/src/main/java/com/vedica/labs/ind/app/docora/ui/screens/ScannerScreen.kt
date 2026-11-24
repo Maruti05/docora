@@ -48,7 +48,6 @@ import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -68,6 +67,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -79,9 +79,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.vedica.labs.ind.app.docora.R
-import com.vedica.labs.ind.app.docora.core.imaging.AutoCaptureDecider
 import com.vedica.labs.ind.app.docora.core.imaging.DocumentEdgeDetector
+import com.vedica.labs.ind.app.docora.core.imaging.OpenCvDocumentDetector
+import com.vedica.labs.ind.app.docora.core.imaging.OpenCvRuntime
 import com.vedica.labs.ind.app.docora.core.model.DocumentDetection
+import com.vedica.labs.ind.app.docora.core.model.Point2F
 import com.vedica.labs.ind.app.docora.core.model.ScanFilter
 import com.vedica.labs.ind.app.docora.core.model.ScanMode
 import com.vedica.labs.ind.app.docora.core.model.QuadCorners
@@ -92,8 +94,9 @@ import com.vedica.labs.ind.app.docora.ui.designsystem.LocalDocoraSpacing
 import com.vedica.labs.ind.app.docora.ui.designsystem.SystemBarAppearance
 import com.vedica.labs.ind.app.docora.ui.scanner.CaptureFlashOverlay
 import com.vedica.labs.ind.app.docora.ui.scanner.ScanCaptureButton
+import com.vedica.labs.ind.app.docora.ui.scanner.ScanCaptureReview
+import com.vedica.labs.ind.app.docora.ui.scanner.ScanCropEditor
 import com.vedica.labs.ind.app.docora.ui.scanner.ScanDetectionOverlay
-import com.vedica.labs.ind.app.docora.ui.scanner.ScanFilterStrip
 import com.vedica.labs.ind.app.docora.ui.scanner.ScanGlassButton
 import com.vedica.labs.ind.app.docora.ui.scanner.ScanGuidancePill
 import com.vedica.labs.ind.app.docora.ui.scanner.ScanModeStrip
@@ -127,10 +130,12 @@ private class CameraSession(context: Context) {
 
     private val captureExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
-    private val decider = AutoCaptureDecider()
+
+    /** OpenCV is primary; the pure-Kotlin detector is the fallback when native loading fails. */
+    private val openCvDetector = OpenCvDocumentDetector()
 
     /** Held across frames: the detector smooths and releases the outline itself. */
-    private val edgeDetector = DocumentEdgeDetector()
+    private val fallbackDetector = DocumentEdgeDetector()
 
     var isCapturing by mutableStateOf(false)
         private set
@@ -139,10 +144,10 @@ private class CameraSession(context: Context) {
     fun bind(
         owner: LifecycleOwner,
         config: CameraSessionConfig,
-        onFrame: (AutoCaptureDecider.Verdict, DocumentDetection) -> Unit,
+        onFrame: (DocumentDetection) -> Unit,
     ) {
-        decider.reset()
-        edgeDetector.reset()
+        openCvDetector.reset()
+        fallbackDetector.reset()
         controller.unbind()
         controller.cameraSelector = if (config.useFrontCamera) {
             CameraSelector.DEFAULT_FRONT_CAMERA
@@ -163,12 +168,13 @@ private class CameraSession(context: Context) {
             CameraController.IMAGE_CAPTURE or CameraController.IMAGE_ANALYSIS,
         )
         controller.setImageAnalysisTargetSize(
-            CameraController.OutputSize(Size(GRID_WIDTH * 10, GRID_HEIGHT * 10)),
+            CameraController.OutputSize(Size(ANALYSIS_WIDTH, ANALYSIS_HEIGHT)),
         )
         controller.setImageAnalysisImageQueueDepth(1)
         controller.setImageAnalysisBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+        val viewAspect = config.previewAspect
         controller.setImageAnalysisAnalyzer(analysisExecutor) { proxy ->
-            analyzeFrame(proxy, onFrame)
+            analyzeFrame(proxy, viewAspect, onFrame)
         }
         controller.bindToLifecycle(owner)
     }
@@ -205,27 +211,61 @@ private class CameraSession(context: Context) {
     }
 
     /**
-     * Reads a coarse luminance grid out of the camera frame.
+     * Reads a luminance frame out of the camera image and hands it to the best available detector.
      *
-     * Only the Y plane is touched and only a few thousand samples are taken, so analysis costs far
-     * less than the preview: that is what keeps auto capture and edge detection from competing with
-     * the frames the user actually sees. The grid is deliberately wider than it is tall to match the
-     * 4:3 analysis stream, so a page's proportions are not distorted before they are measured.
+     * Two coordinate corrections happen here, and both are necessary for the crop to be right:
+     *
+     *  * the sample window is [ImageProxy.getCropRect], because CameraX crops the analysis stream to
+     *    the requested ratio and the padding outside that rect is not part of the picture;
+     *  * the result is projected from the wide analysis field into the on-screen viewfinder, which
+     *    the shutter also crops to. Without this the detector would find a page the capture cannot
+     *    see, and every crop would be shifted and stretched.
      */
     private fun analyzeFrame(
         proxy: ImageProxy,
-        onFrame: (AutoCaptureDecider.Verdict, DocumentDetection) -> Unit,
+        viewAspect: Float,
+        onFrame: (DocumentDetection) -> Unit,
     ) {
         try {
             val plane = proxy.planes.firstOrNull()
             if (plane == null || proxy.width <= 0 || proxy.height <= 0) return
             val buffer = plane.buffer
+            val crop = proxy.cropRect
+            val left = crop.left.coerceIn(0, proxy.width - 1)
+            val top = crop.top.coerceIn(0, proxy.height - 1)
+            val right = crop.right.coerceIn(left + 1, proxy.width)
+            val bottom = crop.bottom.coerceIn(top + 1, proxy.height)
+            val sourceWidth = right - left
+            val sourceHeight = bottom - top
+            val sourceAspect = sourceWidth.toFloat() / sourceHeight
+
+            if (OpenCvRuntime.isReady) {
+                val bytes = ByteArray(DETECT_WIDTH * DETECT_HEIGHT)
+                for (row in 0 until DETECT_HEIGHT) {
+                    val y = top + (row * sourceHeight) / DETECT_HEIGHT
+                    val rowStart = y * plane.rowStride
+                    for (column in 0 until DETECT_WIDTH) {
+                        val x = left + (column * sourceWidth) / DETECT_WIDTH
+                        val index = rowStart + x * plane.pixelStride
+                        bytes[row * DETECT_WIDTH + column] = if (index < buffer.limit()) {
+                            buffer.get(index)
+                        } else {
+                            0
+                        }
+                    }
+                }
+                val detection = openCvDetector.detect(bytes, DETECT_WIDTH, DETECT_HEIGHT)
+                onFrame(detection.projected(sourceAspect, viewAspect))
+                return
+            }
+
             val grid = IntArray(GRID_WIDTH * GRID_HEIGHT)
             for (row in 0 until GRID_HEIGHT) {
-                val y = (row * proxy.height) / GRID_HEIGHT
+                val y = top + (row * sourceHeight) / GRID_HEIGHT
+                val rowStart = y * plane.rowStride
                 for (column in 0 until GRID_WIDTH) {
-                    val x = (column * proxy.width) / GRID_WIDTH
-                    val index = y * plane.rowStride + x * plane.pixelStride
+                    val x = left + (column * sourceWidth) / GRID_WIDTH
+                    val index = rowStart + x * plane.pixelStride
                     grid[row * GRID_WIDTH + column] = if (index < buffer.limit()) {
                         buffer.get(index).toInt() and 0xFF
                     } else {
@@ -233,10 +273,7 @@ private class CameraSession(context: Context) {
                     }
                 }
             }
-            onFrame(
-                decider.submit(grid),
-                edgeDetector.detect(grid, GRID_WIDTH, GRID_HEIGHT),
-            )
+            onFrame(fallbackDetector.detect(grid, GRID_WIDTH, GRID_HEIGHT).projected(sourceAspect, viewAspect))
         } finally {
             proxy.close()
         }
@@ -246,6 +283,11 @@ private class CameraSession(context: Context) {
         runCatching { controller.unbind() }
         captureExecutor.shutdown()
         analysisExecutor.shutdown()
+    }
+
+    /** Stops the camera while a full-screen editor covers the preview. */
+    fun unbind() {
+        runCatching { controller.unbind() }
     }
 
     /** Resolution matching the configured quality, in portrait orientation. */
@@ -259,10 +301,18 @@ private class CameraSession(context: Context) {
          * Size of the luminance grid fed to the auto-capture heuristic and the edge detector.
          *
          * Coarse enough to stay cheap, fine enough that a page boundary lands on a distinct column
-         * rather than being smeared across two.
+         * rather than being smeared across two. Sampling a 96x72 grid from the 640x480 analysis
+         * stream gives corner precision roughly 1.5x better than the old 64x48 grid at a cost of
+         * about seven thousand samples per frame.
          */
-        const val GRID_WIDTH = 64
-        const val GRID_HEIGHT = 48
+        const val GRID_WIDTH = 96
+        const val GRID_HEIGHT = 72
+        const val ANALYSIS_WIDTH = 640
+        const val ANALYSIS_HEIGHT = 480
+
+        /** Grayscale frame handed to OpenCV; contours do not need full analysis resolution. */
+        const val DETECT_WIDTH = 320
+        const val DETECT_HEIGHT = 240
     }
 }
 
@@ -270,8 +320,8 @@ private class CameraSession(context: Context) {
 private data class CameraSessionConfig(
     val useFrontCamera: Boolean,
     val quality: ScannerQuality,
-    /** Part of the key even though the binding is unconditional, so toggling it still rebinds. */
-    val autoCapture: Boolean,
+    /** Visible viewfinder aspect (width / height); zero until the preview has been measured. */
+    val previewAspect: Float = 0f,
 )
 
 /**
@@ -299,7 +349,18 @@ fun ScannerScreen(
     var flashTrigger by remember { mutableStateOf(0) }
     var showReview by remember { mutableStateOf(false) }
     var showGrid by remember { mutableStateOf(false) }
-    var optionsExpanded by remember { mutableStateOf(false) }
+    var cropPageId by remember { mutableStateOf<Long?>(null) }
+    var reviewAfterCrop by remember { mutableStateOf(false) }
+    var captureReviewId by remember { mutableStateOf<Long?>(null) }
+
+    /**
+     * Aspect of the visible viewfinder, measured from the composed preview.
+     *
+     * Detection runs on the camera's analysis stream, which spans a wider field than the cropped
+     * preview. Knowing the on-screen aspect is what lets the detector's corners be projected into
+     * the same frame the user sees - and the same frame the shutter saves.
+     */
+    var previewAspect by remember { mutableStateOf(0f) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -324,15 +385,18 @@ fun ScannerScreen(
         onDispose { session.release() }
     }
 
-    // Rebind only when something the camera actually cares about changes.
+    // Rebind only when something the camera actually cares about changes. The rounded preview
+    // aspect participates because the detector needs it to project corners into viewfinder space.
     val sessionConfig = CameraSessionConfig(
         useFrontCamera = state.useFrontCamera,
         quality = state.quality,
-        autoCapture = state.autoCapture,
+        previewAspect = (previewAspect * 100f).toInt() / 100f,
     )
-    LaunchedEffect(hasPermission, sessionConfig) {
-        if (hasPermission) {
+    LaunchedEffect(hasPermission, sessionConfig, cropPageId, showReview, captureReviewId) {
+        if (hasPermission && cropPageId == null && !showReview && captureReviewId == null) {
             session.bind(lifecycleOwner, sessionConfig, vm::onFrameAnalyzed)
+        } else {
+            session.unbind()
         }
     }
 
@@ -356,14 +420,11 @@ fun ScannerScreen(
         flashTrigger += 1
         session.capture(
             file = vm.newStagingFile(),
-            onCaptured = vm::onPageCaptured,
+            onCaptured = { file ->
+                captureReviewId = vm.onPageCaptured(file)
+            },
             onFailed = vm::onCaptureFailed,
         )
-    }
-
-    // Auto capture: the analysis loop decides, the screen only obeys.
-    LaunchedEffect(session) {
-        vm.captureRequests.collect { shoot() }
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -371,21 +432,21 @@ fun ScannerScreen(
             ScannerBody(
                 state = state,
                 session = session,
-                optionsExpanded = optionsExpanded,
                 showGrid = showGrid,
-                onToggleOptions = { optionsExpanded = !optionsExpanded },
                 onToggleGrid = { showGrid = !showGrid },
                 onPickGallery = { galleryLauncher.launch(arrayOf("image/*")) },
+                onPreviewSize = { size ->
+                    val aspect = if (size.height > 0) size.width.toFloat() / size.height else 0f
+                    if (kotlin.math.abs(aspect - previewAspect) > 0.01f) previewAspect = aspect
+                },
                 onClose = { controller.popBackStack() },
                 onShoot = { shoot() },
                 onReview = { showReview = true },
                 onSave = { vm.save { ids -> ids.firstOrNull()?.let { openViewer(controller, it) } } },
                 onCycleFlash = vm::cycleFlashMode,
                 onTorch = vm::setTorch,
-                onAutoCapture = vm::setAutoCapture,
                 onFlipCamera = vm::flipCamera,
                 onMode = vm::setMode,
-                onFilter = vm::setFilter,
                 onRotatePage = vm::rotatePage,
                 onRemovePage = vm::removePage,
             )
@@ -427,6 +488,11 @@ fun ScannerScreen(
                 onRotate = vm::rotatePage,
                 onMove = vm::movePage,
                 onRemove = vm::removePage,
+                onEdit = { pageId ->
+                    reviewAfterCrop = true
+                    showReview = false
+                    cropPageId = pageId
+                },
                 onFilter = vm::setFilter,
                 onOutput = vm::setOutput,
                 onSave = {
@@ -439,6 +505,48 @@ fun ScannerScreen(
                 },
             )
         }
+    }
+    val capturePage = captureReviewId?.let { id -> state.pages.firstOrNull { it.id == id } }
+    if (capturePage != null) {
+        ScanCaptureReview(
+            page = capturePage,
+            pageNumber = state.pages.indexOfFirst { it.id == capturePage.id } + 1,
+            filter = capturePage.filter,
+            onFilter = { filter -> vm.setPageFilter(capturePage.id, filter) },
+            onRotate = { vm.rotatePage(capturePage.id) },
+            onAdjustEdges = {
+                reviewAfterCrop = false
+                cropPageId = capturePage.id
+            },
+            onRetake = {
+                vm.removePage(capturePage.id)
+                captureReviewId = null
+            },
+            onSave = { captureReviewId = null },
+        )
+    }
+
+    val cropPage = cropPageId?.let { id -> state.pages.firstOrNull { it.id == id } }
+    if (cropPage != null) {
+        ScanCropEditor(
+            page = cropPage,
+            onAutoDetect = { vm.detectPageCorners(cropPage.id) },
+            onApply = { corners ->
+                vm.setPageCorners(cropPage.id, corners)
+                cropPageId = null
+                if (reviewAfterCrop) {
+                    reviewAfterCrop = false
+                    showReview = true
+                }
+            },
+            onDismiss = {
+                cropPageId = null
+                if (reviewAfterCrop) {
+                    reviewAfterCrop = false
+                    showReview = true
+                }
+            },
+        )
     }
 }
 
@@ -459,9 +567,14 @@ private fun PreviewLayer(
     stability: Float,
     locked: Boolean,
     showGrid: Boolean,
+    onSize: (androidx.compose.ui.unit.IntSize) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.background(Color.Black)) {
+    Box(
+        modifier = modifier
+            .background(Color.Black)
+            .onSizeChanged(onSize),
+    ) {
         AndroidView(
             factory = { ctx ->
                 PreviewView(ctx).apply {
@@ -494,21 +607,18 @@ private fun PreviewLayer(
 private fun ScannerBody(
     state: ScannerUiState,
     session: CameraSession,
-    optionsExpanded: Boolean,
     showGrid: Boolean,
-    onToggleOptions: () -> Unit,
     onToggleGrid: () -> Unit,
     onPickGallery: () -> Unit,
+    onPreviewSize: (androidx.compose.ui.unit.IntSize) -> Unit,
     onClose: () -> Unit,
     onShoot: () -> Unit,
     onReview: () -> Unit,
     onSave: () -> Unit,
     onCycleFlash: () -> Unit,
     onTorch: (Boolean) -> Unit,
-    onAutoCapture: (Boolean) -> Unit,
     onFlipCamera: () -> Unit,
     onMode: (ScanMode) -> Unit,
-    onFilter: (ScanFilter) -> Unit,
     onRotatePage: (Long) -> Unit,
     onRemovePage: (Long) -> Unit,
 ) {
@@ -517,33 +627,39 @@ private fun ScannerBody(
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val landscape = maxWidth > maxHeight
-        val topBar: @Composable (Modifier) -> Unit = { barModifier ->
-            ScanTopBar(
-                flashMode = state.flashMode,
-                torchOn = state.torchOn,
-                autoCapture = state.autoCapture,
-                onBack = onClose,
-                onCycleFlash = onCycleFlash,
-                onToggleTorch = { onTorch(!state.torchOn) },
-                onToggleAutoCapture = { onAutoCapture(!state.autoCapture) },
-                onFlipCamera = onFlipCamera,
-                modifier = barModifier,
-            )
+        val topChrome: @Composable (Modifier) -> Unit = { barModifier ->
+            Column(
+                modifier = barModifier.fillMaxWidth()
+                    .background(gradients.scannerTopScrim)
+                    .statusBarsPadding()
+                    .padding(top = spacing.small, bottom = spacing.small),
+                verticalArrangement = Arrangement.spacedBy(spacing.small),
+            ) {
+                ScanTopBar(
+                    flashMode = state.flashMode,
+                    torchOn = state.torchOn,
+                    onBack = onClose,
+                    onCycleFlash = onCycleFlash,
+                    onToggleTorch = { onTorch(!state.torchOn) },
+                    onFlipCamera = onFlipCamera,
+                )
+                ScanModeStrip(
+                    modes = ScanMode.entries,
+                    selected = state.mode,
+                    onSelect = onMode,
+                )
+            }
         }
         val dock: @Composable (Modifier) -> Unit = { dockModifier ->
             ScannerDock(
                 state = state,
                 busy = session.isCapturing,
-                optionsExpanded = optionsExpanded,
                 showGrid = showGrid,
-                onToggleOptions = onToggleOptions,
                 onToggleGrid = onToggleGrid,
                 onPickGallery = onPickGallery,
                 onShoot = onShoot,
                 onReview = onReview,
                 onSave = onSave,
-                onMode = onMode,
-                onFilter = onFilter,
                 onRotatePage = onRotatePage,
                 onRemovePage = onRemovePage,
                 modifier = dockModifier,
@@ -557,19 +673,16 @@ private fun ScannerBody(
                 stability = state.stability,
                 locked = state.pageLooksReady,
                 showGrid = showGrid,
+                onSize = onPreviewSize,
                 modifier = previewModifier,
             )
         }
-        val barChrome = Modifier
-            .background(gradients.scannerTopScrim)
-            .statusBarsPadding()
-            .padding(vertical = spacing.small)
 
         if (landscape) {
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     preview(Modifier.fillMaxSize())
-                    topBar(Modifier.align(Alignment.TopCenter).then(barChrome))
+                    topChrome(Modifier.align(Alignment.TopCenter))
                 }
                 dock(
                     Modifier
@@ -582,7 +695,7 @@ private fun ScannerBody(
         } else {
             Box(Modifier.fillMaxSize()) {
                 preview(Modifier.fillMaxSize())
-                topBar(Modifier.align(Alignment.TopCenter).then(barChrome))
+                topChrome(Modifier.align(Alignment.TopCenter))
                 dock(
                     Modifier
                         .align(Alignment.BottomCenter)
@@ -596,26 +709,20 @@ private fun ScannerBody(
 /**
  * Capture controls, ordered by how close they are to the user's thumb.
  *
- * Anchored at the bottom is the shutter row (review, shoot, save) - the one action taken one-handed
- * without looking. Above it sits a compact tool row: gallery import, the grid toggle and the options
- * toggle. The mode and filter strips live behind that options toggle rather than being permanently
- * on screen, because they are changed rarely and previously buried the shutter under four rows of
- * chrome; nothing was removed, it simply stopped competing with the shutter for space.
+ * The shutter is the single primary control: every tap produces exactly one capture and opens the
+ * review screen. Gallery import and the composition grid sit above it; the mode chips live in the
+ * top chrome, and per-page filters live in the capture review, so nothing covers the shutter.
  */
 @Composable
 private fun ScannerDock(
     state: ScannerUiState,
     busy: Boolean,
-    optionsExpanded: Boolean,
     showGrid: Boolean,
-    onToggleOptions: () -> Unit,
     onToggleGrid: () -> Unit,
     onPickGallery: () -> Unit,
     onShoot: () -> Unit,
     onReview: () -> Unit,
     onSave: () -> Unit,
-    onMode: (ScanMode) -> Unit,
-    onFilter: (ScanFilter) -> Unit,
     onRotatePage: (Long) -> Unit,
     onRemovePage: (Long) -> Unit,
     modifier: Modifier = Modifier,
@@ -648,24 +755,6 @@ private fun ScannerDock(
             locked = state.pageLooksReady,
             modifier = Modifier.padding(horizontal = spacing.large),
         )
-        AnimatedVisibility(
-            visible = optionsExpanded,
-            enter = fadeIn(tween(motion.standard)) + expandVertically(motion.standardSpec()),
-            exit = fadeOut(tween(motion.quick)) + shrinkVertically(motion.quickSpec()),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
-                ScanFilterStrip(
-                    filters = ScanFilter.entries,
-                    selected = state.filter,
-                    onSelect = onFilter,
-                )
-                ScanModeStrip(
-                    modes = ScanMode.entries,
-                    selected = state.mode,
-                    onSelect = onMode,
-                )
-            }
-        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -694,18 +783,6 @@ private fun ScannerDock(
                     modifier = Modifier.size(20.dp),
                 )
             }
-            Spacer(Modifier.width(spacing.small))
-            ScanGlassButton(
-                contentDescription = stringResource(R.string.scan_options),
-                onClick = onToggleOptions,
-                active = optionsExpanded,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Tune,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
         }
         Row(
             modifier = Modifier
@@ -719,21 +796,32 @@ private fun ScannerDock(
                     enter = fadeIn(tween(motion.quick)) + scaleIn(motion.quickSpec()),
                     exit = fadeOut(tween(motion.quick)) + scaleOut(motion.quickSpec()),
                 ) {
-                    FilledTonalButton(onClick = onReview) {
+                    FilledTonalButton(
+                        onClick = onReview,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = 10.dp,
+                            vertical = 6.dp,
+                        ),
+                    ) {
                         Icon(
                             Icons.Filled.DoneAll,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(16.dp),
                         )
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.scan_review))
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.scan_review),
+                            maxLines = 1,
+                            softWrap = false,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
                     }
                 }
             }
             ScanCaptureButton(
                 enabled = !state.isBusy && !busy,
                 busy = busy || state.isBusy,
-                ready = state.pageLooksReady && state.autoCapture,
+                ready = state.pageLooksReady,
                 onClick = onShoot,
             )
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
@@ -742,14 +830,25 @@ private fun ScannerDock(
                     enter = fadeIn(tween(motion.quick)) + scaleIn(motion.quickSpec()),
                     exit = fadeOut(tween(motion.quick)) + scaleOut(motion.quickSpec()),
                 ) {
-                    FilledTonalButton(onClick = onSave) {
+                    FilledTonalButton(
+                        onClick = onSave,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = 10.dp,
+                            vertical = 6.dp,
+                        ),
+                    ) {
                         Icon(
                             Icons.Filled.PictureAsPdf,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(16.dp),
                         )
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.scan_save))
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.scan_save),
+                            maxLines = 1,
+                            softWrap = false,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
                     }
                 }
             }
@@ -760,14 +859,50 @@ private fun ScannerDock(
 /**
  * The one sentence that tells the user what the scanner currently wants from them.
  *
- * Derived from the detector and the steadiness gate rather than tracked as its own state, so the
- * hint can never contradict the outline drawn over the preview.
+ * Derived from the live detector rather than tracked as its own state, so the hint can never
+ * contradict the outline drawn over the preview. Captures are always manual.
  */
 @Composable
 private fun scanGuidanceText(state: ScannerUiState): String = when {
-    state.pageLooksReady && state.autoCapture -> stringResource(R.string.scan_ready_hint)
-    state.detectedCorners != null && state.autoCapture -> stringResource(R.string.scan_hold_steady)
+    state.pageLooksReady -> stringResource(R.string.scan_ready_hint)
     state.detectedCorners != null -> stringResource(R.string.scan_edge_detected)
     state.pageCount > 0 -> stringResource(R.string.scan_captured_count, state.pageCount)
     else -> stringResource(R.string.scan_edge_not_detected)
+}
+
+/**
+ * Projects detector corners from the analysis frame into viewfinder space.
+ *
+ * The analysis stream covers the whole sensor, while the preview and the saved photo are cropped to
+ * the screen's aspect around the same centre. A page that sits on the analysis frame's edge is
+ * therefore outside the picture the shutter takes. Scaling and offsetting the quad here keeps the
+ * outline, the crop and the saved page describing the same rectangle.
+ */
+private fun DocumentDetection.projected(analysisAspect: Float, viewAspect: Float): DocumentDetection {
+    val quad = corners ?: return this
+    if (analysisAspect <= 0f || viewAspect <= 0f) return this
+    val scaleX: Float
+    val scaleY: Float
+    val offsetX: Float
+    val offsetY: Float
+    if (viewAspect < analysisAspect) {
+        val visible = viewAspect / analysisAspect
+        scaleX = 1f / visible
+        scaleY = 1f
+        offsetX = -(1f - visible) / 2f * scaleX
+        offsetY = 0f
+    } else {
+        val visible = analysisAspect / viewAspect
+        scaleX = 1f
+        scaleY = 1f / visible
+        offsetX = 0f
+        offsetY = -(1f - visible) / 2f * scaleY
+    }
+    val projected = quad.toPointList().map { point ->
+        Point2F(
+            x = (point.x * scaleX + offsetX).coerceIn(0f, 1f),
+            y = (point.y * scaleY + offsetY).coerceIn(0f, 1f),
+        )
+    }
+    return copy(corners = QuadCorners.fromPoints(projected))
 }

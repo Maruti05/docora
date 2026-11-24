@@ -129,12 +129,17 @@ object ScanImageProcessor {
 
     // ------------------------------------------------------------------ filters
 
-    fun applyFilter(source: Bitmap, filter: ScanFilter): Bitmap = when (filter) {
-        ScanFilter.ORIGINAL -> source
-        ScanFilter.ENHANCE -> tone(source, saturation = 1.12f, contrast = 1.20f, brightness = 6f)
-        ScanFilter.GRAYSCALE -> tone(source, saturation = 0f, contrast = 1.14f, brightness = 2f)
-        ScanFilter.MAGIC_COLOUR -> tone(source, saturation = 1.55f, contrast = 1.28f, brightness = 8f)
-        ScanFilter.BLACK_AND_WHITE -> blackAndWhite(source)
+    fun applyFilter(source: Bitmap, filter: ScanFilter): Bitmap {
+        if (filter != ScanFilter.ORIGINAL && OpenCvRuntime.isReady) {
+            OpenCvImageFilters.apply(source, filter)?.let { return it }
+        }
+        return when (filter) {
+            ScanFilter.ORIGINAL -> source
+            ScanFilter.ENHANCE -> tone(source, saturation = 1.12f, contrast = 1.20f, brightness = 6f)
+            ScanFilter.GRAYSCALE -> tone(source, saturation = 0f, contrast = 1.14f, brightness = 2f)
+            ScanFilter.MAGIC_COLOUR -> tone(source, saturation = 1.55f, contrast = 1.28f, brightness = 8f)
+            ScanFilter.BLACK_AND_WHITE -> blackAndWhite(source)
+        }
     }
 
     /**
@@ -208,9 +213,16 @@ object ScanImageProcessor {
     }
 
     /** Small preview used by the page strip and the review panel. */
-    fun preview(file: File, maxLongEdge: Int, filter: ScanFilter, rotationDegrees: Int): Bitmap? {
+    fun preview(
+        file: File,
+        maxLongEdge: Int,
+        filter: ScanFilter,
+        rotationDegrees: Int,
+        corners: QuadCorners = QuadCorners.fullFrame(),
+    ): Bitmap? {
         val decoded = decode(file, maxLongEdge) ?: return null
-        val rotated = rotate(decoded, rotationDegrees)
+        val cropped = crop(decoded, corners)
+        val rotated = rotate(cropped, rotationDegrees)
         return applyFilter(rotated, filter)
     }
 

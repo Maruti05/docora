@@ -2,7 +2,6 @@ package com.vedica.labs.ind.app.docora.ui.settings
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.runtime.Composable
@@ -59,14 +58,6 @@ fun ScannerSection(s: AppSettings, vm: SettingsViewModel) {
             subtitle = stringResource(R.string.settings_scanner_default_filter_summary),
             trailing = { SettingsValueTrailing(filterLabel) },
             onClick = { filterSheet = true },
-        )
-        SettingsDivider()
-        SettingsSwitchRow(
-            icon = Icons.Filled.CameraAlt,
-            title = stringResource(R.string.settings_scanner_auto_capture),
-            subtitle = stringResource(R.string.settings_scanner_auto_capture_summary),
-            checked = s.scannerAutoCapture,
-            onCheckedChange = { vm.setScannerAutoCapture(it) },
         )
     }
 

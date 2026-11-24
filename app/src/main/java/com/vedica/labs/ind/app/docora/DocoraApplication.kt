@@ -10,7 +10,9 @@ import coil3.gif.AnimatedImageDecoder
 import coil3.gif.GifDecoder
 import coil3.request.crossfade
 import com.vedica.labs.ind.app.docora.core.notification.NotificationChannels
+import com.vedica.labs.ind.app.docora.core.imaging.OpenCvRuntime
 import dagger.hilt.android.HiltAndroidApp
+import java.util.concurrent.Executors
 import javax.inject.Inject
 
 /**
@@ -27,9 +29,18 @@ class DocoraApplication : Application(), Configuration.Provider, SingletonImageL
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
 
+    /** Single worker so the native library is initialised exactly once per process. */
+    private val loadOpenCv = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "opencv-loader").apply { isDaemon = true }
+    }
+
     override fun onCreate() {
         super.onCreate()
         NotificationChannels.ensureCreated(this)
+        // OpenCV loads ~100 MB of native code. Doing that on the main thread would stall the first
+        // frame of the app; the scanner is several taps away, so it is warmed on a worker instead
+        // and the detector's Kotlin fallback covers the unlikely case that a frame arrives first.
+        runCatching { loadOpenCv.execute { OpenCvRuntime.initialize() } }
     }
 
     /**

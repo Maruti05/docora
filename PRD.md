@@ -1546,7 +1546,6 @@ Organize settings into:
 ### Scanner
 
 * Default quality
-* Auto capture
 * Default PDF size
 * OCR
 

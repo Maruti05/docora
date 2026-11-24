@@ -106,6 +106,27 @@ object ScanImageMath {
         }
 
     /**
+     * Rotates a normalised quad by a clockwise multiple of 90 degrees.
+     *
+     * The crop editor displays the page exactly as the rotated capture will be saved, while
+     * [QuadCorners] must stay in the unrotated image space used by the crop pipeline. Rotating the
+     * quad and its inverse is what keeps the handles attached to the same corners in both spaces.
+     */
+    fun rotateQuad(corners: QuadCorners, degrees: Int): QuadCorners {
+        val normalised = ((degrees % 360) + 360) % 360
+        if (normalised == 0) return corners
+        val rotated = corners.toPointList().map { point ->
+            when (normalised) {
+                90 -> Point2F(1f - point.y, point.x)
+                180 -> Point2F(1f - point.x, 1f - point.y)
+                270 -> Point2F(point.y, 1f - point.x)
+                else -> point
+            }
+        }
+        return QuadCorners.fromPoints(rotated)
+    }
+
+    /**
      * Axis-aligned bounding box of a quad as `[left, top, right, bottom]`, clamped to the frame and
      * guaranteed to be at least one pixel wide and tall so it can always be drawn.
      */

@@ -19,6 +19,11 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "com.vedica.labs.ind.app.docora.HiltTestRunner"
+
+        // OpenCV ships native libraries for every ABI; package only the ones the app supports.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     buildTypes {
@@ -180,6 +185,7 @@ dependencies {
     implementation(libs.coil.gif)
     implementation(libs.pdfbox.android)
     implementation(libs.mlkit.text.recognition)
+    implementation(libs.opencv)
 
     // --- Unit tests (JVM) ---
     testImplementation(libs.junit)

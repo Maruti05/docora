@@ -284,7 +284,6 @@
     <string name="scan_mode_receipt">Receipt</string>
     <string name="scan_mode_whiteboard">Whiteboard</string>
     <string name="scan_mode_photo">Photo</string>
-    <string name="scan_auto_capture">Auto capture</string>
     <string name="scan_flash">Flash</string>
     <string name="scan_flash_auto">Auto</string>
     <string name="scan_flash_on">On</string>
@@ -298,6 +297,10 @@
     <string name="scan_page_count">%1$d pages</string>
     <string name="scan_crop_title">Adjust edges</string>
     <string name="scan_crop_hint">Drag the corners to match the document edges.</string>
+    <string name="scan_crop_auto">Auto detect</string>
+    <string name="scan_crop_full_page">Full page</string>
+    <string name="scan_crop_auto_failed">No edges found — drag the corners manually.</string>
+    <string name="scan_crop_load_failed">This page could not be loaded.</string>
     <string name="scan_no_pages">Capture at least one page to continue.</string>
     <string name="scan_permission_rationale">Docora needs the camera to scan documents. Captures stay on your device.</string>
     <string name="scan_permission_denied">Camera access is off. Enable it in system settings to scan documents.</string>
@@ -587,7 +590,6 @@
     <string name="settings_scanner_quality_standard">Standard</string>
     <string name="settings_scanner_quality_high">High</string>
     <string name="settings_scanner_quality_maximum">Maximum</string>
-    <string name="settings_scanner_auto_capture">Auto capture</string>
     <string name="settings_scanner_default_filter">Default filter</string>
     <string name="settings_scanner_ocr">Run text recognition after saving</string>
     <string name="settings_section_storage">Storage</string>
@@ -659,11 +661,15 @@
 
     <!-- Scanner (capture flow, review panel and save pipeline) -->
     <string name="scan_start_hint">Point the camera at a page and tap the shutter</string>
-    <string name="scan_ready_hint">Hold still — the page looks good</string>
+    <string name="scan_ready_hint">Page detected — tap the shutter</string>
+    <string name="scan_capture_review_title">Review scan</string>
+    <string name="scan_capture_review_subtitle">Page %1$d · adjust the edges or filter before saving</string>
+    <string name="scan_save_page">Save page</string>
+    <string name="scan_retake">Retake</string>
     <string name="scan_review">Review</string>
     <string name="scan_save">Save</string>
     <string name="scan_review_title">Review pages</string>
-    <string name="scan_review_hint">Tap a page to rotate it, or use the badges to reorder.</string>
+    <string name="scan_review_hint">Tap a page’s thumbnail to adjust its edges, or use the buttons to rotate and reorder.</string>
     <string name="scan_captured_count">%1$d captured</string>
     <string name="scan_page_label">Page %1$d</string>
     <string name="scan_rotate_page">Rotate page</string>
@@ -673,7 +679,6 @@
     <string name="scan_flip_camera">Switch camera</string>
     <string name="scan_mode_label">Mode</string>
     <string name="scan_filter_label">Filter</string>
-    <string name="scan_auto_capture_hint">Capture automatically when the page is steady</string>
     <string name="scan_progress_saving">Saving page %1$d of %2$d</string>
     <string name="scan_progress_processing">Processing page %1$d of %2$d</string>
     <string name="scan_saved_pdf">Saved %1$s</string>
@@ -684,7 +689,6 @@
     <string name="scan_keep_editing">Keep editing</string>
     <string name="scan_discard">Discard scan</string>
     <string name="scan_torch">Light</string>
-    <string name="scan_hold_steady">Hold still — locking onto the page</string>
     <string name="scan_gallery_import">Import from gallery</string>
     <string name="scan_grid">Grid</string>
     <string name="scan_options">Filters and modes</string>
@@ -801,7 +805,6 @@
     <string name="settings_scanner_quality_high_summary">Balanced detail and file size.</string>
     <string name="settings_scanner_quality_maximum_summary">Most detail, largest files.</string>
     <string name="settings_scanner_default_filter_summary">Colour treatment applied after capture.</string>
-    <string name="settings_scanner_auto_capture_summary">Takes the picture once the page is framed.</string>
 
     <string name="settings_trash_retention_summary">How long deleted documents stay in the trash.</string>
     <string name="settings_trash_retention_summary_forever">Until you empty the trash yourself.</string>

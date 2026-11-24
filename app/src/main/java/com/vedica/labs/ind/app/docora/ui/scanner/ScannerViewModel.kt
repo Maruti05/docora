@@ -9,7 +9,10 @@ import com.vedica.labs.ind.app.docora.R
 import com.vedica.labs.ind.app.docora.core.common.DocoraLog
 import com.vedica.labs.ind.app.docora.core.datastore.PreferencesManager
 import com.vedica.labs.ind.app.docora.core.files.AppStorage
-import com.vedica.labs.ind.app.docora.core.imaging.AutoCaptureDecider
+import com.vedica.labs.ind.app.docora.core.imaging.DocumentEdgeDetector
+import com.vedica.labs.ind.app.docora.core.imaging.OpenCvDocumentDetector
+import com.vedica.labs.ind.app.docora.core.imaging.OpenCvRuntime
+import com.vedica.labs.ind.app.docora.core.imaging.ScanImageMath
 import com.vedica.labs.ind.app.docora.core.imaging.ScanImageProcessor
 import com.vedica.labs.ind.app.docora.core.model.Document
 import com.vedica.labs.ind.app.docora.core.model.DocumentDetection
@@ -26,11 +29,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
@@ -45,6 +45,14 @@ data class ScanPageUi(
     val filePath: String,
     val uri: String,
     val rotationDegrees: Int = 0,
+    /**
+     * Enhancement applied to this page only.
+     *
+     * Each capture is reviewed on its own screen, so the filter the user settles on there belongs
+     * to that page; a receipt shot in black and white must not restyle the colour photo captured
+     * before it.
+     */
+    val filter: ScanFilter = ScanFilter.default,
     /**
      * The document outline detected when this page was shot, normalised to the photo.
      *
@@ -63,7 +71,6 @@ data class ScannerUiState(
     val filter: ScanFilter = ScanFilter.default,
     val quality: ScannerQuality = ScannerQuality.default,
     val flashMode: FlashMode = FlashMode.AUTO,
-    val autoCapture: Boolean = true,
     val torchOn: Boolean = false,
     val useFrontCamera: Boolean = false,
     val output: ScanOutput = ScanOutput.default,
@@ -74,13 +81,13 @@ data class ScannerUiState(
     val isSaving: Boolean = false,
     val saveCompleted: Int = 0,
     val saveTotal: Int = 0,
-    /** Auto capture hint: the current frame looks like a document and is holding still. */
+    /** True while the live detector has a confident page outline. */
     val pageLooksReady: Boolean = false,
     /** Latest detected page outline, or null while nothing is found. Drives the live overlay. */
     val detectedCorners: QuadCorners? = null,
     /** Detector confidence for [detectedCorners]; also fades the outline out when the page leaves. */
     val detectionConfidence: Float = 0f,
-    /** Steadiness of the frame, 0..1. Drives the auto-capture progress ring and the snap outline. */
+    /** Confidence expressed 0..1, used for the guidance ring. */
     val stability: Float = 0f,
     val cameraReady: Boolean = false,
     val permissionDenied: Boolean = false,
@@ -114,14 +121,8 @@ class ScannerViewModel @Inject constructor(
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 
-    /** Auto capture asks the screen to fire the shutter; a shared flow keeps it a one-shot event. */
-    private val _captureRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val captureRequests: SharedFlow<Unit> = _captureRequests.asSharedFlow()
-
-    private val decider = AutoCaptureDecider()
     private var previewJob: Job? = null
     private var pageSequence = 0L
-    private var lastAutoCaptureAt = 0L
 
     init {
         viewModelScope.launch {
@@ -131,7 +132,6 @@ class ScannerViewModel @Inject constructor(
                     mode = settings.scannerMode,
                     filter = settings.scannerFilter,
                     quality = settings.scannerQuality,
-                    autoCapture = settings.scannerAutoCapture,
                 )
             }
         }
@@ -144,29 +144,59 @@ class ScannerViewModel @Inject constructor(
         appStorage.newStagingFile("page_${System.currentTimeMillis()}.jpg")
 
     /**
-     * Registers a captured page and renders its preview with the active filter.
+     * Registers a captured page, detects its edges and renders its preview.
      *
-     * The page joins the strip immediately (a capture is never silently lost) and its preview is
-     * filled in as soon as it has been decoded, which is why those are two separate updates.
+     * The page joins the strip immediately (a capture is never silently lost) and starts as the
+     * whole frame, then the detector runs over the page's own pixels and the crop snaps to the
+     * document. Detecting on the still rather than reusing the live outline matters: the live frame
+     * covers a wider field than the shutter saves, and a large surface behind the page can win the
+     * live contour. On the saved photo there is nothing but the page.
+     *
+     * Imported photos follow the same path - they are simply captures whose shutter was another app.
      */
-    fun onPageCaptured(file: File, corners: QuadCorners? = null) {
+    fun onPageCaptured(file: File, corners: QuadCorners? = null): Long {
         val page = ScanPageUi(
             id = ++pageSequence,
             filePath = file.absolutePath,
             uri = runCatching { appStorage.uriFor(file) }.getOrDefault(file.absolutePath),
-            // Bake in whatever the detector was looking at when the shutter fired, so the saved
-            // page is cropped to the document instead of to the whole frame. A file that never came
-            // through this camera - an imported photo - passes no quad of its own and is kept whole,
-            // because the outline currently on screen describes the live preview, not that image.
-            corners = corners ?: _state.value.detectedCorners ?: QuadCorners.fullFrame(),
+            filter = _state.value.filter,
+            corners = corners ?: QuadCorners.fullFrame(),
         )
         _state.update { current ->
             current.copy(pages = current.pages + page, isProcessing = true)
         }
         viewModelScope.launch {
-            val filter = _state.value.filter
+            val detected = if (corners != null) {
+                corners
+            } else {
+                detectCorners(file, rotationDegrees = 0)
+            }
+            val cropped = if (detected != null && detected != page.corners) {
+                val updated = page.copy(corners = detected)
+                _state.update { current ->
+                    current.copy(pages = current.pages.map { if (it.id == page.id) updated else it })
+                }
+                DocoraLog.d(
+                    TAG,
+                    "page_detected",
+                    "page" to page.id,
+                    "tlX" to detected.topLeftX,
+                    "tlY" to detected.topLeftY,
+                    "brX" to detected.bottomRightX,
+                    "brY" to detected.bottomRightY,
+                )
+                updated
+            } else {
+                page
+            }
             val preview = withContext(Dispatchers.IO) {
-                ScanImageProcessor.preview(file, PREVIEW_LONG_EDGE, filter, page.rotationDegrees)
+                ScanImageProcessor.preview(
+                    file = file,
+                    maxLongEdge = PREVIEW_LONG_EDGE,
+                    filter = cropped.filter,
+                    rotationDegrees = cropped.rotationDegrees,
+                    corners = cropped.corners,
+                )
             }
             _state.update { current ->
                 current.copy(
@@ -182,6 +212,7 @@ class ScannerViewModel @Inject constructor(
                 DocoraLog.w(TAG, "preview_failed", IllegalStateException(page.filePath))
             }
         }
+        return page.id
     }
 
     /** Drops a page the user removed, so its thumbnail and staged file can be collected. */
@@ -222,11 +253,31 @@ class ScannerViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Applies manually adjusted crop corners to one page and refreshes its preview.
+     *
+     * Corners are stored in the unrotated capture space (the same space the save pipeline crops
+     * in), so the review thumbnail immediately reflects the new crop.
+     */
+    fun setPageCorners(pageId: Long, corners: QuadCorners) {
+        val page = _state.value.pages.firstOrNull { it.id == pageId } ?: return
+        val updated = page.copy(corners = corners)
+        _state.update { current ->
+            current.copy(pages = current.pages.map { if (it.id == pageId) updated else it })
+        }
+        renderPreview(updated)
+    }
+
+    /** Runs edge detection on one captured page and returns corners in its displayed orientation. */
+    suspend fun detectPageCorners(pageId: Long): QuadCorners? {
+        val page = _state.value.pages.firstOrNull { it.id == pageId } ?: return null
+        return detectCorners(page.file, page.rotationDegrees)
+    }
+
     /** Throws the session away: staged files are deleted and nothing reaches the library. */
     fun discard() {
         previewJob?.cancel()
         _state.update { it.copy(pages = emptyList(), previews = emptyMap(), isProcessing = false) }
-        decider.reset()
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { appStorage.clearScanStaging() }
         }
@@ -234,16 +285,38 @@ class ScannerViewModel @Inject constructor(
 
     // ------------------------------------------------------------------ settings
 
-    /** Changing the mode also adopts that mode's recommended filter, which is its whole point. */
+    /** Changing the mode adopts that mode's recommended filter for the pages captured from now on. */
     fun setMode(mode: ScanMode) {
         _state.update { it.copy(mode = mode, filter = mode.defaultFilter) }
+    }
+
+    /**
+     * Applies one filter to every captured page.
+     *
+     * This is the batch action in the page review sheet; the capture screen changes a single page
+     * through [setPageFilter].
+     */
+    fun setFilter(filter: ScanFilter) {
+        val current = _state.value
+        if (current.filter == filter && current.pages.all { it.filter == filter }) return
+        _state.update { state ->
+            state.copy(
+                filter = filter,
+                pages = state.pages.map { it.copy(filter = filter) },
+            )
+        }
         renderAllPreviews()
     }
 
-    fun setFilter(filter: ScanFilter) {
-        if (_state.value.filter == filter) return
-        _state.update { it.copy(filter = filter) }
-        renderAllPreviews()
+    /** Applies a filter to one page only, which is what the post-capture review screen does. */
+    fun setPageFilter(pageId: Long, filter: ScanFilter) {
+        val page = _state.value.pages.firstOrNull { it.id == pageId } ?: return
+        if (page.filter == filter) return
+        val updated = page.copy(filter = filter)
+        _state.update { current ->
+            current.copy(pages = current.pages.map { if (it.id == pageId) updated else it })
+        }
+        renderPreview(updated)
     }
 
     fun setFlashMode(flashMode: FlashMode) = _state.update { it.copy(flashMode = flashMode) }
@@ -261,16 +334,10 @@ class ScannerViewModel @Inject constructor(
 
     fun setTorch(on: Boolean) = _state.update { it.copy(torchOn = on) }
 
-    fun setAutoCapture(enabled: Boolean) {
-        decider.reset()
-        _state.update { it.copy(autoCapture = enabled, pageLooksReady = false) }
-    }
-
     fun setOutput(output: ScanOutput) = _state.update { it.copy(output = output) }
 
     /** Switches between the back and front camera; only meaningful on devices that have both. */
     fun flipCamera() {
-        decider.reset()
         _state.update { it.copy(useFrontCamera = !it.useFrontCamera, pageLooksReady = false) }
     }
 
@@ -301,46 +368,34 @@ class ScannerViewModel @Inject constructor(
         _message.value = null
     }
 
-    // ------------------------------------------------------------------ auto capture
+    // ------------------------------------------------------------------ live detection
 
     /**
-     * Feeds one analysed frame: the auto-capture heuristic and the edge detector together.
+     * Publishes the latest detected outline for the viewfinder.
      *
-     * They are handled in the same call because they read the same frame - the detector supplies the
-     * outline the user sees, the heuristic decides whether to fire, and the steadiness the heuristic
-     * already computed is reused as the auto-snap progress so the two never disagree on screen.
-     *
-     * The cooldown is what makes auto capture usable: without it, holding a page still for a second
-     * would produce a burst of identical pages, because the frame stays "steady" the entire time.
+     * There is deliberately no automatic shutter here: a capture only happens when the user taps
+     * the shutter. Each capture then goes to its own review screen, so holding the phone still can
+     * never produce a burst of duplicate pages.
      */
-    fun onFrameAnalyzed(verdict: AutoCaptureDecider.Verdict, detection: DocumentDetection) {
-        val ready = verdict.documentVisible && verdict.steady
-        val stability = (verdict.stableStreak.toFloat() / STABLE_FRAMES_FOR_CAPTURE).coerceIn(0f, 1f)
+    fun onFrameAnalyzed(detection: DocumentDetection) {
         val current = _state.value
+        val ready = detection.hasDocument
+        val confidence = detection.confidence.coerceIn(0f, 1f)
 
-        // Analysis runs at the camera's frame rate, so a state write per frame would recompose the
-        // whole HUD continuously - including while the user is holding perfectly still, which is
-        // exactly when they are waiting for auto capture. Publishing only meaningful movement keeps
-        // the overlay smooth without paying for identical frames.
+        // Analysis runs at the camera frame rate; only publish meaningful movement/confidence
+        // changes so the HUD is not recomposed for every identical frame.
         val cornersMoved = quadMoved(current.detectedCorners, detection.corners)
-        val confidenceShifted = kotlin.math.abs(current.detectionConfidence - detection.confidence) > 0.02f
-        val stabilityShifted = kotlin.math.abs(current.stability - stability) > 0.01f
-        if (ready != current.pageLooksReady || cornersMoved || confidenceShifted || stabilityShifted) {
+        val confidenceShifted = kotlin.math.abs(current.detectionConfidence - confidence) > 0.02f
+        if (ready != current.pageLooksReady || cornersMoved || confidenceShifted) {
             _state.update {
                 it.copy(
                     pageLooksReady = ready,
-                    stability = stability,
+                    stability = confidence,
                     detectedCorners = detection.corners,
-                    detectionConfidence = detection.confidence,
+                    detectionConfidence = confidence,
                 )
             }
         }
-
-        if (!verdict.shouldCapture || !current.autoCapture || current.isBusy) return
-        val now = System.currentTimeMillis()
-        if (now - lastAutoCaptureAt < AUTO_CAPTURE_COOLDOWN_MS) return
-        lastAutoCaptureAt = now
-        _captureRequests.tryEmit(Unit)
     }
 
     /**
@@ -383,9 +438,45 @@ class ScannerViewModel @Inject constructor(
                 _message.value = context.getString(R.string.scan_import_failed)
                 return@launch
             }
-            onPageCaptured(file, corners = QuadCorners.fullFrame())
+            // The page's own edge detection happens in onPageCaptured; imported photos follow the
+            // same crop-and-filter path as a camera capture so both behave identically.
+            onPageCaptured(file)
         }
     }
+
+    /**
+     * Runs edge detection once over a captured file.
+     *
+     * Detection happens on the displayed (rotation-applied) orientation so the crop editor can use
+     * the result directly. OpenCV is tried first for a full-resolution contour pass; the pure-Kotlin
+     * detector is the fallback when native loading is unavailable or finds no quad.
+     */
+    private suspend fun detectCorners(file: File, rotationDegrees: Int): QuadCorners? =
+        withContext(Dispatchers.IO) {
+            val source = ScanImageProcessor.decode(file, DETECTION_LONG_EDGE)
+                ?: return@withContext null
+            val display = if (rotationDegrees == 0) {
+                source
+            } else {
+                ScanImageProcessor.rotate(source, rotationDegrees)
+            }
+            try {
+                if (display.width <= 0 || display.height <= 0) return@withContext null
+                if (OpenCvRuntime.isReady) {
+                    OpenCvDocumentDetector().detect(display)?.let { return@withContext it }
+                }
+                val pixels = IntArray(display.width * display.height)
+                display.getPixels(pixels, 0, display.width, 0, 0, display.width, display.height)
+                val gray = ScanImageMath.graysOf(pixels)
+                DocumentEdgeDetector(
+                    smoothing = 1f,
+                    releaseAfterMissedFrames = 1,
+                ).detect(gray, display.width, display.height).corners
+            } finally {
+                if (display !== source) runCatching { source.recycle() }
+                runCatching { display.recycle() }
+            }
+        }
 
     // ------------------------------------------------------------------ save
 
@@ -411,7 +502,7 @@ class ScannerViewModel @Inject constructor(
                         ScanImageProcessor.processPage(
                             file = page.file,
                             targetLongEdge = snapshot.quality.targetLongEdgePx,
-                            filter = snapshot.filter,
+                            filter = page.filter,
                             rotationDegrees = page.rotationDegrees,
                             corners = page.corners,
                         )
@@ -454,7 +545,6 @@ class ScannerViewModel @Inject constructor(
         onSaved: (List<String>) -> Unit,
     ) {
         appStorage.clearScanStaging()
-        decider.reset()
         _state.update {
             it.copy(
                 isSaving = false,
@@ -478,37 +568,43 @@ class ScannerViewModel @Inject constructor(
 
     // ------------------------------------------------------------------ previews
 
-    /** Re-renders one page's preview; used after a rotation so the strip updates immediately. */
+    /** Re-renders one page's preview; used after an edit so the strip updates immediately. */
     private fun renderPreview(page: ScanPageUi) {
         viewModelScope.launch {
-            val filter = _state.value.filter
             val bitmap = withContext(Dispatchers.IO) {
-                ScanImageProcessor.preview(page.file, PREVIEW_LONG_EDGE, filter, page.rotationDegrees)
+                ScanImageProcessor.preview(
+                    file = page.file,
+                    maxLongEdge = PREVIEW_LONG_EDGE,
+                    filter = page.filter,
+                    rotationDegrees = page.rotationDegrees,
+                    corners = page.corners,
+                )
             } ?: return@launch
             _state.update { it.copy(previews = it.previews + (page.id to bitmap)) }
         }
     }
 
     /**
-     * Re-renders every preview after the filter changed.
+     * Re-renders every preview after a batch filter change.
      *
      * Runs sequentially on IO and cancels any earlier pass, so moving along the filter strip costs a
-     * bounded amount of work instead of one parallel decode per page.
+     * bounded amount of work instead of one parallel decode per page. Each page keeps its own filter
+     * rather than all of them being forced to the newest one.
      */
     private fun renderAllPreviews() {
         val pages = _state.value.pages
         if (pages.isEmpty()) return
         previewJob?.cancel()
         previewJob = viewModelScope.launch {
-            val filter = _state.value.filter
             val rendered = HashMap<Long, Bitmap>(pages.size)
             pages.forEach { page ->
                 val bitmap = withContext(Dispatchers.IO) {
                     ScanImageProcessor.preview(
                         file = page.file,
                         maxLongEdge = PREVIEW_LONG_EDGE,
-                        filter = filter,
+                        filter = page.filter,
                         rotationDegrees = page.rotationDegrees,
+                        corners = page.corners,
                     )
                 }
                 if (bitmap != null) rendered[page.id] = bitmap
@@ -523,11 +619,8 @@ class ScannerViewModel @Inject constructor(
         /** Long edge of a strip thumbnail: sharp on a 3x display, about 200 KB in memory. */
         const val PREVIEW_LONG_EDGE = 320
 
-        /** Time auto capture waits before it may fire again, so one page yields exactly one page. */
-        const val AUTO_CAPTURE_COOLDOWN_MS = 2_500L
-
-        /** Stable frames the auto-capture gate demands; must match [AutoCaptureDecider]'s tuning. */
-        const val STABLE_FRAMES_FOR_CAPTURE = 6f
+        /** Long edge used for one-shot edge detection on a captured page. */
+        const val DETECTION_LONG_EDGE = 900
 
         /** Movement, in normalised frame units, below which the outline is considered stationary. */
         const val QUAD_EPSILON = 0.004f

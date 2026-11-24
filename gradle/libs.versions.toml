@@ -40,6 +40,7 @@ camera = "1.6.2"
 coil = "3.6.3"
 pdfbox = "2.0.27.0"
 mlkitTextRecognition = "16.0.1"
+opencv = "4.14.0"
 kotlinxSerialization = "1.11.0"
 kotlinxCoroutines = "1.11.0"
 
@@ -125,6 +126,7 @@ coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref 
 coil-gif = { group = "io.coil-kt.coil3", name = "coil-gif", version.ref = "coil" }
 pdfbox-android = { group = "com.tom-roush", name = "pdfbox-android", version.ref = "pdfbox" }
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
+opencv = { group = "org.opencv", name = "opencv", version.ref = "opencv" }
 
 # --- Test ---
 junit = { group = "junit", name = "junit", version.ref = "junit" }

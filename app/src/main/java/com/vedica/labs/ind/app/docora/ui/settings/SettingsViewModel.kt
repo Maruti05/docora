@@ -97,7 +97,6 @@ class SettingsViewModel @Inject constructor(
     fun setSecureScreen(enabled: Boolean) = update { it.copy(secureScreenEnabled = enabled) }
 
     fun setScannerQuality(quality: ScannerQuality) = update { it.copy(scannerQuality = quality) }
-    fun setScannerAutoCapture(enabled: Boolean) = update { it.copy(scannerAutoCapture = enabled) }
     fun setScannerMode(mode: ScanMode) = update { it.copy(scannerMode = mode) }
     fun setScannerFilter(filter: ScanFilter) = update { it.copy(scannerFilter = filter) }
 
