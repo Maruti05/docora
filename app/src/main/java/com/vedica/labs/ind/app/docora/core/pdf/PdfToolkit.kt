@@ -13,6 +13,7 @@ import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.PDPage
 import com.tom_roush.pdfbox.pdmodel.PDPageContentStream
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle
+import com.tom_roush.pdfbox.pdmodel.font.PDType1Font
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB
 import com.tom_roush.pdfbox.pdmodel.graphics.image.JPEGFactory
@@ -41,6 +42,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.atan2
 
 /**
  * On-device PDF editing built on PDFBox-Android (PRD A�11, A�46).
@@ -312,10 +314,11 @@ class PdfToolkit @Inject constructor(
     /**
      * Writes viewer marks into a copy of the PDF.
      *
-     * Highlight and underline become real PDF text-markup annotations, notes become sticky
-     * note annotations, and freehand strokes are appended to the page content stream as
-     * vector paths. Embedding the strokes avoids depending on an annotation appearance
-     * handler that older PDF viewers may not render.
+     * Text markup becomes real PDF annotations, sticky notes become note annotations, and
+     * everything that has to look identical in every viewer - freehand ink, text boxes, shapes
+     * and blackout rectangles - is appended to the page content stream as vector content.
+     * Embedding that content avoids depending on an annotation appearance handler that older
+     * PDF viewers may not render.
      */
     suspend fun applyAnnotations(
         document: Document,
@@ -326,23 +329,27 @@ class PdfToolkit @Inject constructor(
         }) {
             require(marks.isNotEmpty()) { "Draw something first" }
             openDocument(Uri.parse(document.uri)).use { source ->
-                val inkByPage = marks.filter { it.kind == PdfMarkKind.INK }.groupBy { it.pageIndex }
-                marks.filter { it.kind != PdfMarkKind.INK }.forEach { mark ->
+                marks.filter { it.kind.isAnnotation() }.forEach { mark ->
                     if (mark.pageIndex !in 0 until source.numberOfPages) return@forEach
                     val page = source.getPage(mark.pageIndex)
                     when (mark.kind) {
-                        PdfMarkKind.HIGHLIGHT, PdfMarkKind.UNDERLINE -> {
-                            addTextMarkup(source, page, mark)
-                        }
+                        PdfMarkKind.HIGHLIGHT,
+                        PdfMarkKind.UNDERLINE,
+                        PdfMarkKind.STRIKEOUT,
+                        PdfMarkKind.SQUIGGLY,
+                        -> addTextMarkup(source, page, mark)
                         PdfMarkKind.NOTE -> addNote(page, mark)
-                        PdfMarkKind.INK -> Unit
+                        else -> Unit
                     }
                 }
-                inkByPage.forEach { (pageIndex, pageMarks) ->
-                    if (pageIndex in 0 until source.numberOfPages) {
-                        drawInk(source, source.getPage(pageIndex), pageMarks)
+                marks
+                    .filterNot { it.kind.isAnnotation() }
+                    .groupBy { it.pageIndex }
+                    .forEach { (pageIndex, pageMarks) ->
+                        if (pageIndex in 0 until source.numberOfPages) {
+                            drawContent(source, source.getPage(pageIndex), pageMarks)
+                        }
                     }
-                }
                 val output = PDDocument()
                 try {
                     source.pages.forEach { page -> output.importPage(page) }
@@ -354,6 +361,16 @@ class PdfToolkit @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun PdfMarkKind.isAnnotation(): Boolean = when (this) {
+        PdfMarkKind.HIGHLIGHT,
+        PdfMarkKind.UNDERLINE,
+        PdfMarkKind.STRIKEOUT,
+        PdfMarkKind.SQUIGGLY,
+        PdfMarkKind.NOTE,
+        -> true
+        else -> false
     }
 
     // ------------------------------------------------------------------ internals
@@ -575,10 +592,18 @@ class PdfToolkit @Inject constructor(
         val rotation = ((page.rotation + mark.displayRotation) % 360 + 360) % 360
         val left = min(start.x, end.x)
         val right = max(start.x, end.x)
-        val top = min(start.y, end.y)
+        var top = min(start.y, end.y)
         var bottom = max(start.y, end.y)
-        if (mark.kind == PdfMarkKind.UNDERLINE) {
-            bottom = (top + 0.014f).coerceAtMost(bottom)
+        // Underline and strikeout are thin bands, so the annotation's quad has to be narrowed:
+        // PDFBox paints the line at the bottom edge of whatever rectangle it is given.
+        when (mark.kind) {
+            PdfMarkKind.UNDERLINE -> top = (bottom - 0.012f).coerceAtLeast(top)
+            PdfMarkKind.STRIKEOUT -> {
+                val middle = (top + bottom) / 2f
+                top = middle - 0.008f
+                bottom = middle + 0.008f
+            }
+            else -> Unit
         }
         val topLeft = toPdfPoint(left, top, rotation, box)
         val topRight = toPdfPoint(right, top, rotation, box)
@@ -591,10 +616,11 @@ class PdfToolkit @Inject constructor(
         val minY = ys.min()
         val maxY = ys.max()
         if (maxX - minX < 0.5f || maxY - minY < 0.5f) return
-        val subtype = if (mark.kind == PdfMarkKind.UNDERLINE) {
-            PDAnnotationTextMarkup.SUB_TYPE_UNDERLINE
-        } else {
-            PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT
+        val subtype = when (mark.kind) {
+            PdfMarkKind.UNDERLINE -> PDAnnotationTextMarkup.SUB_TYPE_UNDERLINE
+            PdfMarkKind.STRIKEOUT -> PDAnnotationTextMarkup.SUB_TYPE_STRIKEOUT
+            PdfMarkKind.SQUIGGLY -> PDAnnotationTextMarkup.SUB_TYPE_SQUIGGLY
+            else -> PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT
         }
         val annotation = PDAnnotationTextMarkup(subtype).apply {
             setQuadPoints(
@@ -607,7 +633,7 @@ class PdfToolkit @Inject constructor(
             )
             setRectangle(PDRectangle(minX, minY, maxX - minX, maxY - minY))
             setColor(mark.colorArgb.toPdColor())
-            setConstantOpacity(if (mark.kind == PdfMarkKind.UNDERLINE) 0.9f else 0.38f)
+            setConstantOpacity(if (mark.kind == PdfMarkKind.HIGHLIGHT) 0.38f else 0.9f)
             setContents("Docora ${mark.kind.name.lowercase()}")
             setPrinted(true)
         }
@@ -632,10 +658,16 @@ class PdfToolkit @Inject constructor(
         runCatching { annotation.constructAppearances() }
     }
 
-    private fun drawInk(document: PDDocument, page: PDPage, marks: List<PdfMark>) {
+    /**
+     * Paints the marks that must look identical in every viewer into the page content stream:
+     * freehand ink, signature strokes, text boxes, shapes and blackout rectangles.
+     *
+     * They share one stream per page, which keeps a page with dozens of marks to a single
+     * appended content section instead of one per mark.
+     */
+    private fun drawContent(document: PDDocument, page: PDPage, marks: List<PdfMark>) {
         if (marks.isEmpty()) return
         val box = page.cropBox
-        val rotation = ((page.rotation + (marks.first().displayRotation)) % 360 + 360) % 360
         PDPageContentStream(
             document,
             page,
@@ -644,28 +676,178 @@ class PdfToolkit @Inject constructor(
             true,
         ).use { stream ->
             stream.setLineCapStyle(1)
+            stream.setLineJoinStyle(1)
             marks.forEach { mark ->
-                if (mark.points.size < 2) return@forEach
-                val color = mark.colorArgb
-                stream.setStrokingColor(
+                val rotation = ((page.rotation + mark.displayRotation) % 360 + 360) % 360
+                when (mark.kind) {
+                    PdfMarkKind.INK -> drawInk(stream, mark, box, rotation)
+                    PdfMarkKind.TEXT -> drawTextBox(stream, mark, box, rotation)
+                    PdfMarkKind.RECTANGLE,
+                    PdfMarkKind.ELLIPSE,
+                    PdfMarkKind.LINE,
+                    PdfMarkKind.ARROW,
+                    PdfMarkKind.REDACT,
+                    -> drawShape(stream, mark, box, rotation)
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    private fun drawInk(
+        stream: PDPageContentStream,
+        mark: PdfMark,
+        box: PDRectangle,
+        rotation: Int,
+    ) {
+        if (mark.points.size < 2) return
+        applyStroke(stream, mark.colorArgb, mark.strokeWidth)
+        var started = false
+        mark.points.forEach { point ->
+            val mapped = toPdfPoint(point.x, point.y, rotation, box)
+            if (!started) {
+                stream.moveTo(mapped[0], mapped[1])
+                started = true
+            } else {
+                stream.lineTo(mapped[0], mapped[1])
+            }
+        }
+        if (started) stream.stroke()
+    }
+
+    private fun drawTextBox(
+        stream: PDPageContentStream,
+        mark: PdfMark,
+        box: PDRectangle,
+        rotation: Int,
+    ) {
+        val start = mark.start ?: return
+        val text = mark.note.orEmpty().trim()
+        if (text.isEmpty()) return
+        val point = toPdfPoint(start.x, start.y, rotation, box)
+        val fontSize = mark.fontSize.coerceIn(6f, 72f)
+        val color = mark.colorArgb
+        val opened = runCatching { stream.beginText() }.isSuccess
+        if (!opened) return
+        try {
+            stream.setNonStrokingColor(Color.red(color), Color.green(color), Color.blue(color))
+            stream.setFont(PDType1Font.HELVETICA, fontSize)
+            stream.setLeading(fontSize * 1.3f)
+            // The tap marks the top-left of the box, while PDF text is laid out from a baseline.
+            stream.newLineAtOffset(point[0], point[1] - fontSize)
+            text.lines().take(MAX_TEXT_LINES).forEachIndexed { index, line ->
+                if (index > 0) stream.newLine()
+                stream.showText(line)
+            }
+        } catch (_: Throwable) {
+            // Standard fonts cover Latin text only; an unsupported glyph skips that text box
+            // rather than failing the whole save.
+        } finally {
+            runCatching { stream.endText() }
+        }
+    }
+
+    private fun drawShape(
+        stream: PDPageContentStream,
+        mark: PdfMark,
+        box: PDRectangle,
+        rotation: Int,
+    ) {
+        val start = mark.start ?: return
+        val end = mark.end ?: return
+        val first = toPdfPoint(start.x, start.y, rotation, box)
+        val second = toPdfPoint(end.x, end.y, rotation, box)
+        val left = min(first[0], second[0])
+        val right = max(first[0], second[0])
+        val bottom = min(first[1], second[1])
+        val top = max(first[1], second[1])
+        val width = right - left
+        val height = top - bottom
+        val color = mark.colorArgb
+        when (mark.kind) {
+            PdfMarkKind.RECTANGLE -> {
+                if (width < 0.5f || height < 0.5f) return
+                applyStroke(stream, color, mark.strokeWidth)
+                stream.addRect(left, bottom, width, height)
+                stream.stroke()
+            }
+            PdfMarkKind.ELLIPSE -> {
+                if (width < 1f || height < 1f) return
+                applyStroke(stream, color, mark.strokeWidth)
+                addEllipse(stream, left, bottom, width, height)
+                stream.stroke()
+            }
+            PdfMarkKind.LINE -> {
+                if (width < 0.5f && height < 0.5f) return
+                applyStroke(stream, color, mark.strokeWidth)
+                stream.moveTo(first[0], first[1])
+                stream.lineTo(second[0], second[1])
+                stream.stroke()
+            }
+            PdfMarkKind.ARROW -> {
+                if (width < 0.5f && height < 0.5f) return
+                applyStroke(stream, color, mark.strokeWidth)
+                stream.moveTo(first[0], first[1])
+                stream.lineTo(second[0], second[1])
+                stream.stroke()
+                val angle = atan2(
+                    (second[1] - first[1]).toDouble(),
+                    (second[0] - first[0]).toDouble(),
+                )
+                val head = max(7f, mark.strokeWidth * 4f)
+                val spread = Math.toRadians(24.0)
+                val headX1 = (second[0] - head * kotlin.math.cos(angle - spread)).toFloat()
+                val headY1 = (second[1] - head * kotlin.math.sin(angle - spread)).toFloat()
+                val headX2 = (second[0] - head * kotlin.math.cos(angle + spread)).toFloat()
+                val headY2 = (second[1] - head * kotlin.math.sin(angle + spread)).toFloat()
+                stream.moveTo(second[0], second[1])
+                stream.lineTo(headX1, headY1)
+                stream.moveTo(second[0], second[1])
+                stream.lineTo(headX2, headY2)
+                stream.stroke()
+            }
+            PdfMarkKind.REDACT -> {
+                if (width < 0.5f || height < 0.5f) return
+                stream.setNonStrokingColor(
                     Color.red(color),
                     Color.green(color),
                     Color.blue(color),
                 )
-                stream.setLineWidth(mark.strokeWidth.coerceIn(0.5f, 12f))
-                var started = false
-                mark.points.forEach { point ->
-                    val mapped = toPdfPoint(point.x, point.y, rotation, box)
-                    if (!started) {
-                        stream.moveTo(mapped[0], mapped[1])
-                        started = true
-                    } else {
-                        stream.lineTo(mapped[0], mapped[1])
-                    }
-                }
-                if (started) stream.stroke()
+                stream.addRect(left, bottom, width, height)
+                stream.fill()
             }
+            else -> Unit
         }
+    }
+
+    private fun applyStroke(stream: PDPageContentStream, colorArgb: Int, strokeWidth: Float) {
+        stream.setStrokingColor(
+            Color.red(colorArgb),
+            Color.green(colorArgb),
+            Color.blue(colorArgb),
+        )
+        stream.setLineWidth(strokeWidth.coerceIn(0.5f, 16f))
+    }
+
+    /** Four cubic Béziers, the standard approximation of an ellipse in PDF. */
+    private fun addEllipse(
+        stream: PDPageContentStream,
+        left: Float,
+        bottom: Float,
+        width: Float,
+        height: Float,
+    ) {
+        val k = 0.5522848f
+        val cx = left + width / 2f
+        val cy = bottom + height / 2f
+        val rx = width / 2f
+        val ry = height / 2f
+        stream.moveTo(cx + rx, cy)
+        stream.curveTo(cx + rx, cy + k * ry, cx + k * rx, cy + ry, cx, cy + ry)
+        stream.curveTo(cx - k * rx, cy + ry, cx - rx, cy + k * ry, cx - rx, cy)
+        stream.curveTo(cx - rx, cy - k * ry, cx - k * rx, cy - ry, cx, cy - ry)
+        stream.curveTo(cx + k * rx, cy - ry, cx + rx, cy - k * ry, cx + rx, cy)
+        stream.closePath()
     }
 
     /**
@@ -709,6 +891,7 @@ class PdfToolkit @Inject constructor(
 
     private companion object {
         const val MAX_HEAP_BUFFER_BYTES = 32L * 1024 * 1024
+        const val MAX_TEXT_LINES = 12
         const val A4_WIDTH = 595.28f
         const val A4_HEIGHT = 841.89f
         const val LETTER_WIDTH = 612f

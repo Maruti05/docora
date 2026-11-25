@@ -98,7 +98,20 @@ data class PdfPageSpec(
 )
 
 /** Kinds of mark the viewer can add (PRD A�10). */
-enum class PdfMarkKind { HIGHLIGHT, UNDERLINE, INK, NOTE }
+enum class PdfMarkKind {
+    HIGHLIGHT,
+    UNDERLINE,
+    STRIKEOUT,
+    SQUIGGLY,
+    INK,
+    NOTE,
+    TEXT,
+    RECTANGLE,
+    ELLIPSE,
+    LINE,
+    ARROW,
+    REDACT,
+}
 
 /** A point in normalised, displayed page space (0..1, top-left origin). */
 data class PdfPoint(val x: Float, val y: Float)
@@ -120,6 +133,8 @@ data class PdfMark(
     val points: List<PdfPoint> = emptyList(),
     val note: String? = null,
     val strokeWidth: Float = 2.4f,
+    /** Font size in PDF points for [PdfMarkKind.TEXT]; ignored by every other kind. */
+    val fontSize: Float = 12f,
 )
 
 /** One in-document search hit, grouped by page so the UI can show a result list. */
